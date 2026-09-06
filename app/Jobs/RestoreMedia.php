@@ -7,6 +7,7 @@ use App\Models\Media;
 use App\Support\ColdStorage;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
@@ -15,6 +16,9 @@ use RuntimeException;
  * dépôt — l'empreinte SHA-256 ne laisse aucune place au doute —, le remet à
  * sa place et jette l'archive. Le fichier redevient « chaud » pour un nouveau
  * délai avant archivage.
+ *
+ * Deux demandes simultanées — deux téléchargements du même fichier archivé —
+ * se sérialisent sur un verrou : la seconde trouve l'original déjà reconstruit.
  */
 class RestoreMedia implements ShouldQueue
 {
@@ -30,12 +34,19 @@ class RestoreMedia implements ShouldQueue
 
     public function handle(): void
     {
-        $media = $this->media->fresh();
+        Cache::lock("media-restore:{$this->media->id}", 1800)->block(1800, function (): void {
+            $media = $this->media->fresh();
 
-        if ($media === null || ! $media->isArchived()) {
-            return;
-        }
+            if ($media === null || ! $media->isArchived()) {
+                return;
+            }
 
+            $this->restore($media);
+        });
+    }
+
+    private function restore(Media $media): void
+    {
         $archive = Storage::disk('local')->path($media->archive_path);
         $destination = $media->absolutePath();
         // Même extension que l'original : djxl s'en sert pour rendre le JPEG d'origine.

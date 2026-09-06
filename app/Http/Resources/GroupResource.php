@@ -32,11 +32,13 @@ class GroupResource extends JsonResource
             'expires_at' => $this->expires_at?->toIso8601String(),
             'expires_label' => $this->expiresLabel(),
             'is_expiring_soon' => $this->expires_at !== null && $this->expires_at->lessThan(now()->addDays(2)),
+            'is_expired' => $this->isExpired(),
             'url' => route('groups.show', $this->id),
             'download_url' => route('groups.download', $this->id),
             'invite_url' => $this->inviteUrl(),
             'invite_email_url' => route('groups.invitations.store', $this->id),
             'share_url' => route('groups.media.store', $this->id),
+            'picker_url' => route('media.index', ['exclude_group' => $this->id]),
         ];
     }
 

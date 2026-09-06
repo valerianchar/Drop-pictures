@@ -4,27 +4,35 @@ import Pusher from 'pusher-js';
 
 /*
  * Temps réel via le Soketi de la pile (protocole Pusher). Le navigateur
- * s'abonne à son canal privé — l'aperçu d'un fichier est prêt — et, sur la
- * page d'un groupe, au canal du groupe : ce qu'un membre y dépose apparaît chez
- * les autres sans recharger.
+ * s'abonne à son canal privé — l'aperçu d'un fichier est prêt, un original
+ * reconstruit — et, sur la page d'un groupe, au canal du groupe : ce qu'un
+ * membre y dépose apparaît chez les autres sans recharger.
  *
  * Sans clé dans les props partagées, rien ne se connecte : l'app vit très bien
  * sans temps réel.
  */
 
 let echo = null;
-let reloadTimer = null;
 let currentUserId = null;
+let reloadTimer = null;
+const pendingReload = new Set();
 const groupSubscriptions = new Map();
+// Une page de groupe peut demander son canal avant que la connexion existe : on la sert plus tard.
+const wantedGroups = new Set();
 
 function toast(message, asError = false) {
     document.dispatchEvent(new CustomEvent('drop:toast', { detail: { message, error: asError } }));
 }
 
-/* Plusieurs événements coup sur coup — un dépôt de dix photos — ne rechargent qu'une fois. */
+/* Plusieurs événements coup sur coup — un dépôt de dix photos — ne rechargent qu'une fois, avec l'union des props demandées. */
 function quietReload(only) {
+    only.forEach((key) => pendingReload.add(key));
     clearTimeout(reloadTimer);
-    reloadTimer = setTimeout(() => router.reload({ only, preserveScroll: true }), 400);
+    reloadTimer = setTimeout(() => {
+        const keys = [...pendingReload];
+        pendingReload.clear();
+        router.reload({ only: keys, preserveScroll: true });
+    }, 400);
 }
 
 function xsrfToken() {
@@ -34,7 +42,16 @@ function xsrfToken() {
 }
 
 export function connectRealtime(broadcast) {
-    if (echo !== null || !broadcast?.key || !broadcast.user_id) {
+    if (!broadcast?.key || !broadcast.user_id) {
+        return;
+    }
+
+    // Un autre compte s'est connecté dans le même onglet : on repart de zéro.
+    if (echo !== null && broadcast.user_id !== currentUserId) {
+        disconnectRealtime();
+    }
+
+    if (echo !== null) {
         return;
     }
 
@@ -64,12 +81,28 @@ export function connectRealtime(broadcast) {
             toast(`« ${event.name} » est de retour, prêt à télécharger.`);
             quietReload(['media', 'storage']);
         });
+
+    wantedGroups.forEach((groupId) => subscribeGroup(groupId));
+}
+
+export function disconnectRealtime() {
+    if (echo !== null) {
+        echo.disconnect();
+    }
+
+    echo = null;
+    currentUserId = null;
+    groupSubscriptions.clear();
 }
 
 /**
  * La page d'un groupe s'abonne à son canal ; elle se désabonne en partant.
+ * Appelée avant la connexion (la page se monte avant la coquille), la demande
+ * attend et sera honorée par connectRealtime.
  */
 export function subscribeGroup(groupId) {
+    wantedGroups.add(groupId);
+
     if (echo === null || groupSubscriptions.has(groupId)) {
         return;
     }
@@ -97,6 +130,8 @@ export function subscribeGroup(groupId) {
 }
 
 export function unsubscribeGroup(groupId) {
+    wantedGroups.delete(groupId);
+
     if (echo === null || !groupSubscriptions.has(groupId)) {
         return;
     }

@@ -31,6 +31,9 @@ class GroupInvitationController extends Controller
     {
         $group = Group::query()->where('invite_token', $token)->firstOrFail();
 
+        // Un groupe arrivé à échéance n'accueille plus personne, quel que soit le lien.
+        abort_if($group->isExpired(), 404);
+
         if ($request->user() === null) {
             PendingInvitation::rememberGroup($group);
 
@@ -52,6 +55,8 @@ class GroupInvitationController extends Controller
     public function show(Request $request, string $token, JoinGroup $joinGroup): RedirectResponse
     {
         $invitation = GroupInvitation::query()->with('group')->where('token', $token)->firstOrFail();
+
+        abort_if($invitation->group->isExpired(), 404);
 
         if ($invitation->isAccepted()) {
             return $request->user() !== null

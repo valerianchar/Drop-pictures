@@ -58,6 +58,11 @@ class ZipDownloadController extends Controller
      */
     private function zip(Collection $media, string $name): StreamedResponse
     {
+        // Les originaux archivés sont reconstruits AVANT d'ouvrir le flux : une
+        // erreur devient une vraie réponse d'erreur, pas un ZIP tronqué en 200.
+        $media = $media->map(fn (Media $item): Media => ColdStorage::ensureHot($item));
+        $media->each(fn (Media $item) => abort_unless(is_file($item->absolutePath()), 500, "Fichier introuvable : {$item->original_name}"));
+
         $entries = $this->uniqueNames($media);
 
         return response()->streamDownload(function () use ($entries): void {
@@ -69,8 +74,7 @@ class ZipDownloadController extends Controller
             );
 
             foreach ($entries as $entryName => $item) {
-                // Un original archivé est reconstruit juste avant d'entrer dans le ZIP.
-                $zip->addFileFromPath(fileName: $entryName, path: ColdStorage::ensureHot($item)->absolutePath());
+                $zip->addFileFromPath(fileName: $entryName, path: $item->absolutePath());
             }
 
             $zip->finish();

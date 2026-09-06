@@ -5,6 +5,7 @@ import { TabsContent, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
 import { CheckSquare, Plus } from '@lucide/vue';
 import Dropzone from '../components/Dropzone.vue';
 import GroupCard from '../components/GroupCard.vue';
+import GroupPickerDialog from '../components/GroupPickerDialog.vue';
 import InviteDialog from '../components/InviteDialog.vue';
 import MediaDetailsDialog from '../components/MediaDetailsDialog.vue';
 import MediaGrid from '../components/MediaGrid.vue';
@@ -63,6 +64,7 @@ function openShare(media) {
 /* Mode sélection : plusieurs fichiers d'un coup, dans un ZIP sans compression. */
 const selecting = ref(false);
 const selectedIds = ref([]);
+const pickingGroup = ref(false);
 const selected = computed(() => props.media.filter((item) => selectedIds.value.includes(item.id)));
 
 function toggle(media) {
@@ -79,6 +81,13 @@ function closeSelection() {
 // Un filtre change la liste : la sélection ne garde que ce qui reste visible.
 watch(() => props.media, (media) => {
     selectedIds.value = selectedIds.value.filter((id) => media.some((item) => item.id === id));
+});
+
+// La sélection n'a de sens que sur l'onglet Fichiers.
+watch(tab, (value) => {
+    if (value !== 'fichiers') {
+        closeSelection();
+    }
 });
 
 const storageLine = computed(() => {
@@ -181,7 +190,9 @@ const storageLine = computed(() => {
         @all="selectedIds = media.map((item) => item.id)"
         @clear="selectedIds = []"
         @close="closeSelection"
+        @to-group="pickingGroup = true"
     />
+    <GroupPickerDialog v-model:open="pickingGroup" :groups="groups" :media-ids="selectedIds" @sent="closeSelection" />
 
     <MediaDetailsDialog :media="currentDetails" @close="details = null" @share="openShare" />
     <ShareDialog :media="currentSharing" :groups="groups" @close="sharing = null" />

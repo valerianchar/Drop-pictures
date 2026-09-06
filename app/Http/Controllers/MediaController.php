@@ -6,10 +6,14 @@ use App\Actions\DeleteMedia;
 use App\Actions\SyncMediaTags;
 use App\Events\MediaRemoved;
 use App\Http\Requests\UpdateMediaTagsRequest;
+use App\Http\Resources\MediaResource;
 use App\Jobs\RestoreMedia;
 use App\Models\Media;
+use App\Queries\UserMedia;
 use App\Support\ColdStorage;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -18,6 +22,21 @@ use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 
 class MediaController extends Controller
 {
+    /**
+     * Sa propre galerie, en JSON, pour choisir des fichiers depuis un groupe :
+     * ceux qui y sont déjà sont écartés.
+     */
+    public function index(Request $request, UserMedia $userMedia): JsonResponse
+    {
+        $excludeGroup = $request->integer('exclude_group') ?: null;
+        $search = $request->string('q')->value() ?: null;
+
+        $media = $userMedia->forGallery($request->user(), null, null, $search)
+            ->when($excludeGroup !== null, fn ($items) => $items->reject(fn (Media $item) => $item->groups()->whereKey($excludeGroup)->exists()));
+
+        return response()->json(['media' => MediaResource::collection($media->values())->resolve()]);
+    }
+
     /**
      * Le fichier d'origine, octet pour octet, sous son nom d'origine. Réponse
      * en flux avec reprise (Range) : un fichier de plusieurs Go part sans
@@ -59,6 +78,8 @@ class MediaController extends Controller
         Gate::authorize('view', $media);
 
         if ($media->isArchived() && $media->restoring_at === null) {
+            // Posé tout de suite : la réponse dit déjà « en cours », un second clic ne relance rien.
+            $media->forceFill(['restoring_at' => now()])->saveQuietly();
             RestoreMedia::dispatch($media);
         }
 

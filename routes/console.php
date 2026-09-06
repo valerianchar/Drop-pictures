@@ -15,11 +15,12 @@ Schedule::command(ArchiveMediaCommand::class)
     ->withoutOverlapping();
 
 /*
- * Un groupe à durée de vie se clôt à l'heure dite, pas au lendemain : ses
- * fichiers déposés sont détruits, c'est une promesse faite aux membres.
+ * Un groupe arrivé à échéance est fermé à l'instant même par les autorisations ;
+ * le passage ne fait que ranger — détruire ce qui doit l'être, supprimer le
+ * groupe — et n'a pas besoin d'attendre l'heure pleine.
  */
 Schedule::command(ExpireGroupsCommand::class)
-    ->hourly()
+    ->everyFiveMinutes()
     ->withoutOverlapping();
 
 /*

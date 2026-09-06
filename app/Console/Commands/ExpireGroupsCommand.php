@@ -17,7 +17,8 @@ class ExpireGroupsCommand extends Command
         $groups = 0;
         $files = 0;
 
-        Group::query()->whereNotNull('expires_at')->where('expires_at', '<=', now())->each(function (Group $group) use ($expireGroup, &$groups, &$files): void {
+        // get() et non each() : supprimer des lignes pendant une pagination par décalage en sauterait.
+        Group::query()->whereNotNull('expires_at')->where('expires_at', '<=', now())->get()->each(function (Group $group) use ($expireGroup, &$groups, &$files): void {
             $name = $group->name;
             $destroyed = $expireGroup->handle($group);
             $groups++;

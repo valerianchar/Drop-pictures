@@ -74,16 +74,30 @@ class ArchiveMedia implements ShouldQueue
                 return;
             }
 
-            $media->forceFill([
-                'archived_at' => now(),
-                'archive_path' => $archivePath,
-                'archive_codec' => $codec,
-                'archived_bytes' => $archivedBytes,
-            ])->save();
+            // Mise à jour conditionnelle : si le média a été supprimé ou restauré
+            // entre-temps, aucune ligne ne bouge, et l'archive est jetée sans
+            // toucher à l'original.
+            $updated = Media::query()
+                ->whereKey($media->id)
+                ->whereNull('archived_at')
+                ->whereNull('restoring_at')
+                ->update([
+                    'archived_at' => now(),
+                    'archive_path' => $archivePath,
+                    'archive_codec' => $codec,
+                    'archived_bytes' => $archivedBytes,
+                ]);
+
+            if ($updated !== 1) {
+                @unlink($archive);
+
+                return;
+            }
 
             // Seulement maintenant : l'archive est là, vérifiée, enregistrée.
             @unlink($source);
 
+            $media->refresh();
             MediaProcessed::dispatch($media, $media->groups()->pluck('groups.id')->all());
         } catch (Throwable $exception) {
             @unlink($archive);

@@ -108,11 +108,30 @@ async function uploadOne(item, file, tags, groupId) {
         }
 
         item.status = 'erreur';
-        item.error =
-            error instanceof HttpError
-                ? error.message
-                : 'Le dépôt a été interrompu. Vérifie ta connexion et réessaie.';
+        item.error = describeError(error);
+        console.error('[drop-picture] dépôt interrompu', file.name, error);
     }
+}
+
+/**
+ * Le message d'échec dit ce qui s'est vraiment passé : une lecture de fichier
+ * refusée par le système (iOS retire l'accès aux vidéos de la photothèque
+ * après un moment) n'est pas une coupure réseau, et ne se répare pas pareil.
+ */
+function describeError(error) {
+    if (error instanceof HttpError) {
+        return error.message;
+    }
+
+    if (error?.name === 'NotReadableError' || error?.name === 'NotFoundError') {
+        return 'Le téléphone n’a pas laissé lire le fichier jusqu’au bout. Réessaie en le choisissant à nouveau, ou depuis l’app Fichiers.';
+    }
+
+    if (error?.name === 'TypeError' && /fetch|network|Load failed/i.test(error.message ?? '')) {
+        return 'Le dépôt a été interrompu par le réseau. Vérifie ta connexion et réessaie.';
+    }
+
+    return `Le dépôt a échoué : ${error?.name ?? 'erreur'}${error?.message ? ' — ' + error.message : ''}.`;
 }
 
 async function sendChunk(url, bytes, item) {
@@ -150,7 +169,7 @@ function refreshGallery(item) {
 
 export function useUploader() {
     function addFiles(fileList, tags = [], groupId = state.targetGroupId) {
-        const files = Array.from(fileList ?? []).filter((file) => file.size > 0);
+        const files = Array.from(fileList ?? []);
 
         for (const file of files) {
             const item = reactive({
@@ -169,6 +188,14 @@ export function useUploader() {
             });
 
             state.items.unshift(item);
+
+            // Un fichier vide — ou remis vide par le système, ce qu'iOS fait parfois
+            // avec une vidéo de la photothèque — se voit, au lieu de disparaître sans un mot.
+            if (file.size === 0) {
+                item.status = 'erreur';
+                item.error = 'Fichier vide ou inaccessible : le téléphone n’a pas transmis son contenu. Réessaie depuis l’app Fichiers.';
+                continue;
+            }
 
             queue = queue.then(async () => {
                 await slot();

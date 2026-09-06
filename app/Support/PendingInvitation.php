@@ -50,11 +50,12 @@ final class PendingInvitation
         if ($pending['type'] === 'email') {
             $invitation = GroupInvitation::query()->where('token', $pending['token'])->whereNull('accepted_at')->first();
 
-            return $invitation === null ? null : [$invitation->group, $invitation];
+            return $invitation === null || $invitation->group->isExpired() ? null : [$invitation->group, $invitation];
         }
 
         $group = Group::query()->where('invite_token', $pending['token'])->first();
 
-        return $group === null ? null : [$group, null];
+        // Le groupe a pu arriver à échéance pendant l'inscription : on n'y entre plus.
+        return $group === null || $group->isExpired() ? null : [$group, null];
     }
 }

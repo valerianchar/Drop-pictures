@@ -3,12 +3,14 @@ import { computed } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenuRoot, DropdownMenuTrigger } from 'reka-ui';
 import { LogOut, Settings } from '@lucide/vue';
+import { disconnectRealtime } from '../realtime';
 import { routes } from '../routes';
 
 const page = usePage();
 const user = computed(() => page.props.auth.user);
 
 function logout() {
+    disconnectRealtime();
     router.post(routes.logout);
 }
 </script>

@@ -17,6 +17,8 @@ final class UserGroups
     public function forDashboard(User $user): Collection
     {
         return $user->accessibleGroups()
+            // Un groupe arrivé à échéance est déjà fermé ; le planificateur le supprimera.
+            ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now()))
             ->withCount(['memberships', 'media'])
             ->orderBy('id')
             ->get();
