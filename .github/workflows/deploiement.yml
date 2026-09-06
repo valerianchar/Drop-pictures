@@ -1,0 +1,176 @@
+# Déploiement continu vers le VPS.
+#
+# Trois temps : la suite de tests, la construction et la publication de l'image,
+# puis la bascule sur le serveur. Rien n'est déployé si les tests échouent, et le
+# serveur ne compile rien — il récupère une image déjà prête.
+#
+# L'image part sur le registre privé hébergé sur le VPS lui-même (celui de
+# pointage, compose.registry.yaml), pas sur un registre tiers. Il n'écoute qu'en
+# boucle locale : la CI le rejoint par un tunnel SSH, le serveur y accède
+# directement.
+#
+# Secrets à créer (Settings → Secrets and variables → Actions) — les mêmes que
+# pour pointage, avec la même clé de déploiement :
+#   VPS_HOST           adresse ou nom d'hôte du serveur
+#   VPS_USER           utilisateur de déploiement, membre du groupe docker
+#   VPS_SSH_KEY        clé privée dédiée au déploiement, en entier
+#   VPS_KNOWN_HOSTS    sortie de « ssh-keyscan VOTRE_HOTE », pour ne pas
+#                      faire confiance aveuglément au serveur qui répond
+#   REGISTRY_USER      utilisateur du registre (voir compose.registry.yaml)
+#   REGISTRY_PASSWORD  mot de passe correspondant
+#   APP_HEALTH_URL     par exemple https://drop-pictures.vallau.com
+
+name: Déploiement
+
+on:
+    push:
+        branches: [main]
+    workflow_dispatch:
+
+# Deux déploiements simultanés se marcheraient sur les pieds.
+concurrency:
+    group: deploiement
+    cancel-in-progress: false
+
+jobs:
+    tests:
+        name: Tests
+        runs-on: ubuntu-latest
+        services:
+            mysql:
+                image: mysql:8.4
+                env:
+                    MYSQL_DATABASE: testing
+                    MYSQL_ROOT_PASSWORD: racine
+                ports: ['3306:3306']
+                options: >-
+                    --health-cmd="mysqladmin ping -pracine"
+                    --health-interval=10s
+                    --health-timeout=5s
+                    --health-retries=12
+        env:
+            DB_CONNECTION: mysql
+            DB_HOST: 127.0.0.1
+            DB_PORT: 3306
+            DB_DATABASE: testing
+            DB_USERNAME: root
+            DB_PASSWORD: racine
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: shivammathur/setup-php@v2
+              with:
+                  php-version: '8.4'
+                  extensions: pdo_mysql, intl, gd, exif
+                  coverage: none
+
+            - name: Installer les dépendances
+              run: composer install --prefer-dist --no-interaction --no-progress
+
+            - name: Préparer l'environnement de test
+              run: cp .env.example .env && php artisan key:generate
+
+            - name: Lancer la suite
+              run: php artisan test
+
+            - name: Vérifier le style
+              run: vendor/bin/pint --test
+
+    image:
+        name: Image
+        needs: tests
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        outputs:
+            reference: ${{ steps.reference.outputs.value }}
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Calculer la référence de l'image
+              id: reference
+              # Déployer une empreinte précise plutôt que « latest » : on sait
+              # exactement ce qui tourne, et la bascule est reproductible.
+              run: echo "value=localhost:5000/drop-picture:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+            - name: Préparer l'accès SSH
+              run: |
+                  mkdir -p ~/.ssh
+                  chmod 700 ~/.ssh
+                  printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploiement
+                  chmod 600 ~/.ssh/deploiement
+                  printf '%s\n' "${{ secrets.VPS_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+                  chmod 600 ~/.ssh/known_hosts
+
+            - name: Ouvrir un tunnel vers le registre du VPS
+              # Le registre n'écoute qu'en boucle locale sur le serveur : ce tunnel
+              # est la seule façon d'y pousser une image depuis l'extérieur.
+              run: |
+                  ssh -i ~/.ssh/deploiement -f -N -L 5000:127.0.0.1:5000 \
+                    "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}"
+
+            - uses: docker/setup-buildx-action@v3
+              with:
+                  # Le constructeur doit voir le tunnel ouvert sur la machine hôte :
+                  # sans le réseau hôte, « localhost:5000 » désignerait le
+                  # conteneur buildkit lui-même, pas le tunnel.
+                  driver-opts: network=host
+
+            - uses: docker/login-action@v3
+              with:
+                  registry: localhost:5000
+                  username: ${{ secrets.REGISTRY_USER }}
+                  password: ${{ secrets.REGISTRY_PASSWORD }}
+
+            - uses: docker/build-push-action@v6
+              with:
+                  context: .
+                  push: true
+                  tags: |
+                      ${{ steps.reference.outputs.value }}
+                      localhost:5000/drop-picture:latest
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=max
+
+    deploiement:
+        name: Bascule sur le serveur
+        needs: image
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Préparer l'accès SSH
+              run: |
+                  mkdir -p ~/.ssh
+                  chmod 700 ~/.ssh
+                  printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploiement
+                  chmod 600 ~/.ssh/deploiement
+                  printf '%s\n' "${{ secrets.VPS_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+                  chmod 600 ~/.ssh/known_hosts
+
+            # Le serveur n'héberge aucun code source : il reçoit la description de
+            # la pile et le script de bascule, tout le reste vient du registre.
+            - name: Téléverser la description de la pile
+              run: |
+                  scp -i ~/.ssh/deploiement compose.deploy.yaml redeploie.sh \
+                    "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/srv/drop-picture/"
+
+            # La bascule vit dans redeploie.sh, le même script qu'on lance à la
+            # main sur le serveur : une seule logique de déploiement. Il finit par
+            # le test d'intégrité dépôt → téléchargement (critère d'acceptation n°1).
+            - name: Déployer
+              env:
+                  IMAGE: ${{ needs.image.outputs.reference }}
+              run: |
+                  ssh -i ~/.ssh/deploiement "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+                    "cd /srv/drop-picture && chmod +x redeploie.sh && ./redeploie.sh '$IMAGE'"
+
+            - name: Vérifier que l'application répond
+              # Le conteneur applique les migrations et reconstruit ses caches avant
+              # d'écouter : on laisse le temps à la bascule.
+              run: |
+                  curl --fail --show-error --silent \
+                    --retry 12 --retry-delay 5 --retry-all-errors \
+                    --max-time 30 \
+                    "${{ secrets.APP_HEALTH_URL }}/up" > /dev/null
+                  echo "L'application répond."

@@ -1,0 +1,142 @@
+# Pile de production alimentée par une image déjà construite, récupérée depuis le
+# registre. Le serveur ne compile rien : il économise le pic de mémoire du build et
+# la bascule ne prend que quelques secondes.
+#
+# Le registre (compose.registry.yaml du projet pointage) tourne sur cette même
+# machine, en boucle locale : "localhost:5000" désigne donc ici le registre du
+# VPS, pas celui de la CI.
+#
+# L'application ne détient pas les ports 80/443 : c'est le Traefik du serveur
+# (compose.proxy.yaml de pointage) qui termine le TLS et la joint par le réseau
+# « proxy ». Elle sert donc du HTTP simple (SERVER_NAME=:80) et fait confiance
+# aux en-têtes X-Forwarded-* de ce seul réseau — TRUSTED_PROXIES dans le .env.
+#
+# La CI passe l'empreinte exacte à déployer :
+#   DROP_IMAGE=localhost:5000/drop-picture:<sha> \
+#     docker compose -f compose.deploy.yaml up -d
+
+# Nom de projet figé : les volumes ne dépendent pas du nom du dossier, qui pourrait
+# être renommé sans qu'on veuille perdre la base — ni les fichiers déposés.
+name: drop-picture
+
+services:
+    app:
+        image: '${DROP_IMAGE:-localhost:5000/drop-picture:latest}'
+        restart: unless-stopped
+        env_file: .env
+        environment:
+            # HTTP simple : le TLS est l'affaire du proxy.
+            SERVER_NAME: ':80'
+            MIGRATE_ON_BOOT: 'true'
+        labels:
+            traefik.enable: 'true'
+            traefik.http.routers.drop-picture.rule: 'Host(`${APP_DOMAIN}`)'
+            traefik.http.routers.drop-picture.entrypoints: 'websecure'
+            traefik.http.routers.drop-picture.tls.certresolver: 'le'
+            traefik.http.services.drop-picture.loadbalancer.server.port: '80'
+            # Un morceau de 8 Mo sur une connexion lente peut prendre du temps ;
+            # un téléchargement de 5 Go aussi. Traefik ne coupe pas avant.
+            traefik.http.services.drop-picture.loadbalancer.responseforwarding.flushinterval: '100ms'
+        volumes:
+            # Les fichiers déposés vivent ici, dans app/private : c'est LE volume à sauvegarder.
+            - storage:/app/storage
+        networks:
+            - default
+            - proxy
+        depends_on:
+            mysql:
+                condition: service_healthy
+
+    # Aperçus et métadonnées se calculent hors requête, dans un worker qui lit
+    # le fichier d'origine sans jamais l'écrire. --max-time recycle le processus
+    # chaque heure : la mémoire de GD ne s'accumule pas.
+    queue:
+        image: '${DROP_IMAGE:-localhost:5000/drop-picture:latest}'
+        restart: unless-stopped
+        env_file: .env
+        entrypoint: ['php', 'artisan', 'queue:work', '--sleep=3', '--tries=2', '--timeout=600', '--max-time=3600']
+        healthcheck:
+            disable: true
+        volumes:
+            - storage:/app/storage
+        depends_on:
+            app:
+                condition: service_started
+            mysql:
+                condition: service_healthy
+
+    scheduler:
+        image: '${DROP_IMAGE:-localhost:5000/drop-picture:latest}'
+        restart: unless-stopped
+        env_file: .env
+        entrypoint: ['php', 'artisan', 'schedule:work']
+        healthcheck:
+            # Celui de l'image sonde Caddy, qui ne tourne pas ici : le
+            # planificateur n'est qu'une boucle artisan.
+            disable: true
+        volumes:
+            - storage:/app/storage
+        depends_on:
+            app:
+                condition: service_started
+            mysql:
+                condition: service_healthy
+
+    # Boîte aux lettres de l'instance : invitations et réinitialisations de mot
+    # de passe y arrivent tant qu'aucun SMTP externe n'est configuré. Lecture
+    # par tunnel SSH — port 8026, le 8025 étant celui de pointage :
+    #   ssh -L 8026:127.0.0.1:8026 VOTRE_HOTE  puis  http://localhost:8026
+    # — ou par le sous-domaine MAILPIT_DOMAIN via Traefik.
+    mailpit:
+        image: axllent/mailpit
+        restart: unless-stopped
+        environment:
+            MP_DATABASE: /data/mailpit.db
+        labels:
+            traefik.enable: 'true'
+            traefik.http.routers.drop-mailpit.rule: 'Host(`${MAILPIT_DOMAIN:-mailpit.drop.localhost}`)'
+            traefik.http.routers.drop-mailpit.entrypoints: 'websecure'
+            traefik.http.routers.drop-mailpit.tls.certresolver: 'le'
+            traefik.http.routers.drop-mailpit.middlewares: 'drop-mailpit-auth'
+            traefik.http.middlewares.drop-mailpit-auth.basicauth.users: '${MAILPIT_BASIC_AUTH:-}'
+            traefik.http.services.drop-mailpit.loadbalancer.server.port: '8025'
+        ports:
+            - '127.0.0.1:8026:8025'
+        networks:
+            - default
+            - proxy
+        volumes:
+            - mailpit-data:/data
+
+    mysql:
+        image: mysql:8.4
+        restart: unless-stopped
+        environment:
+            MYSQL_DATABASE: '${DB_DATABASE}'
+            MYSQL_USER: '${DB_USERNAME}'
+            MYSQL_PASSWORD: '${DB_PASSWORD}'
+            MYSQL_ROOT_PASSWORD: '${DB_ROOT_PASSWORD}'
+        # La base ne porte que des métadonnées — les octets sont sur le volume
+        # storage — : réglages serrés pour cohabiter avec pointage sur 2 Go.
+        command:
+            - '--innodb-buffer-pool-size=64M'
+            - '--performance-schema=OFF'
+            - '--innodb-flush-method=O_DIRECT'
+        volumes:
+            - mysql-data:/var/lib/mysql
+        healthcheck:
+            test: ['CMD', 'mysqladmin', 'ping', '-p${DB_PASSWORD}']
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 40s
+
+networks:
+    # Créé une fois pour toutes avec le proxy — voir compose.proxy.yaml de pointage.
+    proxy:
+        external: true
+
+volumes:
+    mysql-data:
+    storage:
+    mailpit-data:

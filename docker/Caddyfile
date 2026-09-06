@@ -1,0 +1,41 @@
+{
+	frankenphp
+	order php_server before file_server
+
+	# Adresse à laquelle Let's Encrypt signale un certificat qui va expirer. La
+	# valeur de repli permet de démarrer en HTTP seul, sans certificat, pour une
+	# vérification locale.
+	email {$TLS_EMAIL:drop-picture@localhost}
+}
+
+# SERVER_NAME porte le domaine en production, ce qui déclenche l'obtention
+# automatique du certificat. La valeur « :80 » sert l'application en HTTP seul,
+# pour une vérification locale ou derrière le Traefik du serveur.
+{$SERVER_NAME} {
+	root * /app/public
+
+	# Compression de transport des seules réponses textuelles (HTML, JSON, CSS,
+	# JS) — c'est le comportement par défaut de « encode », qui ne touche ni aux
+	# images, ni aux vidéos, ni aux flux binaires : un original part tel quel,
+	# avec sa vraie longueur.
+	encode zstd gzip
+
+	# Le nom des assets construits porte une empreinte : ils ne changent jamais.
+	@immutable path /build/*
+	header @immutable Cache-Control "public, max-age=31536000, immutable"
+
+	# Le service worker et le manifeste doivent être relus à chaque déploiement,
+	# sinon l'application installée reste sur une ancienne version.
+	@revalidate path /sw.js /manifest.webmanifest
+	header @revalidate Cache-Control "no-cache"
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "same-origin"
+		-Server
+	}
+
+	php_server
+}

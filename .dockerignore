@@ -1,0 +1,32 @@
+# Le contexte de construction reste léger : les dépendances sont installées dans
+# leurs propres étapes, et rien de local ne doit atterrir dans l'image.
+.git
+.gitignore
+.github
+
+node_modules
+vendor
+public/build
+public/hot
+
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+storage/app/private/*
+storage/logs/*.log
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/views/*
+
+tests
+docs
+monitoring
+compose.yaml
+compose.deploy.yaml
+Dockerfile
+.dockerignore
+.dev-php.sh
+README.md
+DEPLOIEMENT.md
