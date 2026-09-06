@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Group;
 use App\Models\Media;
+use App\Support\ColdStorage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
@@ -68,7 +69,8 @@ class ZipDownloadController extends Controller
             );
 
             foreach ($entries as $entryName => $item) {
-                $zip->addFileFromPath(fileName: $entryName, path: $item->absolutePath());
+                // Un original archivé est reconstruit juste avant d'entrer dans le ZIP.
+                $zip->addFileFromPath(fileName: $entryName, path: ColdStorage::ensureHot($item)->absolutePath());
             }
 
             $zip->finish();

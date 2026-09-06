@@ -45,6 +45,12 @@ final class Limits
         ];
     }
 
+    /** Jours sans consultation avant archivage sans perte ; 0 : jamais. */
+    public static function archiveAfterDays(): int
+    {
+        return (int) Settings::get('archive_after_days', config('drop.archive_after_days'));
+    }
+
     public static function keyFor(MediaKind $kind): string
     {
         return "max_{$kind->value}_bytes";

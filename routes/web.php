@@ -69,6 +69,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/fichiers/{media}/voir', [MediaController::class, 'view'])->name('media.view');
     Route::get('/fichiers/{media}/apercu', [MediaController::class, 'thumbnail'])->name('media.thumbnail');
     Route::put('/fichiers/{media}/tags', [MediaController::class, 'updateTags'])->name('media.tags');
+    Route::post('/fichiers/{media}/restaurer', [MediaController::class, 'restore'])->name('media.restore');
     Route::delete('/fichiers/{media}', [MediaController::class, 'destroy'])->name('media.destroy');
 
     Route::post('/fichiers/{media}/liens', [ShareLinkController::class, 'store'])->name('share-links.store');

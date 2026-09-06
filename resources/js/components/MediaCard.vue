@@ -66,7 +66,9 @@ function onClick() {
         <div class="flex items-center justify-between gap-2 px-3.5 py-2.5">
             <div class="min-w-0">
                 <p class="truncate font-mono text-[11px] text-text">{{ props.media.name }}</p>
-                <p class="truncate font-mono text-[10px] text-text-muted">{{ props.media.meta }}</p>
+                <p class="truncate font-mono text-[10px] text-text-muted">
+                    {{ props.media.meta }}<span v-if="props.media.archived" class="text-warning"> · archivé</span>
+                </p>
             </div>
 
             <button

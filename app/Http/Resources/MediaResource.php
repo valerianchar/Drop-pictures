@@ -37,6 +37,12 @@ class MediaResource extends JsonResource
             'download_url' => route('media.download', $this->id),
             'view_url' => route('media.view', $this->id),
             'processed' => $this->processed_at !== null,
+            'archived' => $this->isArchived(),
+            'restoring' => $this->restoring_at !== null,
+            'archived_label' => $this->isArchived()
+                ? 'Archivé · −'.round(100 * $this->savedBytes() / max(1, $this->size_bytes)).' %'
+                : null,
+            'restore_url' => route('media.restore', $this->id),
             'tags' => $this->whenLoaded('tags', fn () => $this->tags->pluck('name')->values()->all(), []),
             'share_links_count' => $this->whenCounted('share_links_count'),
             'shared_by' => $this->whenPivotLoaded('group_media', fn () => $this->pivot->shared_by),

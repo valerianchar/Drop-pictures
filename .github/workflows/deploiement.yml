@@ -64,6 +64,10 @@ jobs:
                   extensions: pdo_mysql, intl, gd, exif
                   coverage: none
 
+            - name: Installer les outils d'archivage sans perte
+              # Les tests d'archivage jouent la vraie recompression et la reconstruction.
+              run: sudo apt-get update -qq && sudo apt-get install -y -qq libjxl-tools zstd
+
             - name: Installer les dépendances
               run: composer install --prefer-dist --no-interaction --no-progress
 

@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
-import { Copy, Play, Share2, Trash2, X } from '@lucide/vue';
+import { Archive, Copy, LoaderCircle, Play, RefreshCw, Share2, Trash2, X } from '@lucide/vue';
 import AppDialog from './AppDialog.vue';
 import ConfirmDialog from './ConfirmDialog.vue';
 import DownloadActions from './DownloadActions.vue';
@@ -65,6 +65,17 @@ function saveTags() {
     );
 }
 
+function restore() {
+    processing.value = true;
+
+    router.post(props.media.restore_url, {}, {
+        preserveState: true,
+        preserveScroll: true,
+        only: ['media', 'flash'],
+        onFinish: () => (processing.value = false),
+    });
+}
+
 async function copyChecksum() {
     await copy(props.media.checksum);
     toast('Empreinte SHA-256 copiée.');
@@ -103,6 +114,22 @@ function destroy() {
                     <Play class="size-2.5" />{{ media.duration_label ?? 'Vidéo' }}
                 </span>
                 <span class="badge absolute top-2.5 right-2.5 bg-[rgba(4,7,4,0.8)] text-accent-400 backdrop-blur-[2px]">Original · {{ media.quality }}</span>
+            </div>
+
+            <div v-if="media.archived" class="mb-4 flex items-start gap-2.5 rounded-md border border-neutral-800 bg-surface p-3 text-[13px]">
+                <Archive class="mt-px size-[18px] shrink-0 text-warning" />
+                <div class="min-w-0 flex-1">
+                    <p class="font-semibold">{{ media.archived_label }} — sans perte</p>
+                    <p class="mt-0.5 text-text-muted">
+                        L'original est rangé sous une forme compressée réversible et se reconstruit à l'identique (même empreinte)
+                        au téléchargement, en quelques secondes. Recharge-le d'avance si tu veux qu'il soit prêt.
+                    </p>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm shrink-0" :disabled="media.restoring || processing" @click="restore">
+                    <LoaderCircle v-if="media.restoring" class="size-4 animate-spin" />
+                    <RefreshCw v-else class="size-4" />
+                    {{ media.restoring ? 'En cours…' : 'Recharger' }}
+                </button>
             </div>
 
             <dl class="mb-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[13px]">

@@ -7,6 +7,7 @@ import { routes } from '../../routes';
 const props = defineProps({
     limits: { type: Object, required: true },
     disk: { type: Object, required: true },
+    archive: { type: Object, required: true },
     update_url: { type: String, required: true },
 });
 
@@ -15,6 +16,7 @@ const form = useForm({
     photo_gb: props.limits.photo_gb,
     video_gb: props.limits.video_gb,
     autre_gb: props.limits.autre_gb,
+    archive_after_days: props.limits.archive_after_days,
 });
 
 function submit() {
@@ -60,6 +62,17 @@ function submit() {
                 Un dépôt est refusé à l'ouverture s'il dépasse la limite de sa famille, le quota du compte, ou la place disponible sur le serveur.
             </p>
 
+            <FormField
+                label="Archiver sans perte après (jours)"
+                :error="form.errors.archive_after_days"
+                hint="0 : jamais. Passé ce délai sans consultation, un JPEG est recompressé en JPEG XL (~20 % gagnés), un RAW/TIFF/PNG en zstd (10 à 40 %) — l'original se reconstruit à l'identique au téléchargement. Vidéos et HEIC, déjà au plus serré, ne sont pas touchés."
+            >
+                <input v-model="form.archive_after_days" type="number" step="1" min="0" class="field font-mono" required />
+            </FormField>
+            <p v-if="!archive.available" class="text-[13px] text-warning">
+                Les outils d'archivage (cjxl, djxl, zstd) sont absents de ce serveur : rien ne sera archivé tant qu'ils manquent.
+            </p>
+
             <div class="flex justify-end">
                 <button type="submit" class="btn btn-primary" :disabled="form.processing || !form.isDirty">Enregistrer</button>
             </div>
@@ -77,6 +90,10 @@ function submit() {
                 <dd class="font-mono">{{ disk.reserve_label }}</dd>
                 <dt class="text-text-muted">Disponible pour les dépôts</dt>
                 <dd class="font-mono text-accent-400">{{ disk.usable_label ?? '—' }}</dd>
+                <dt class="text-text-muted">Fichiers archivés</dt>
+                <dd class="font-mono">{{ archive.archived_count }}</dd>
+                <dt class="text-text-muted">Économisés par l'archivage</dt>
+                <dd class="font-mono">{{ archive.saved_label }}</dd>
             </dl>
             <p class="hint mt-3">
                 Les quotas par compte s'additionnent : c'est cette place-là qui borne réellement le total. Pour aller au-delà, il faut agrandir le disque du serveur.

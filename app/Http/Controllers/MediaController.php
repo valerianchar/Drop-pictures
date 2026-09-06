@@ -6,7 +6,9 @@ use App\Actions\DeleteMedia;
 use App\Actions\SyncMediaTags;
 use App\Events\MediaRemoved;
 use App\Http\Requests\UpdateMediaTagsRequest;
+use App\Jobs\RestoreMedia;
 use App\Models\Media;
+use App\Support\ColdStorage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
@@ -24,6 +26,7 @@ class MediaController extends Controller
     public function download(Media $media): BinaryFileResponse
     {
         Gate::authorize('view', $media);
+        $media = ColdStorage::ensureHot($media);
 
         return response()
             ->download($media->absolutePath(), $media->original_name, [
@@ -42,7 +45,24 @@ class MediaController extends Controller
     {
         Gate::authorize('view', $media);
 
-        return self::inline($media);
+        return self::inline(ColdStorage::ensureHot($media));
+    }
+
+    /**
+     * Reconstruire l'original d'un fichier archivé, en tâche de fond : la carte
+     * l'annonce quand il est de retour. Le téléchargement direct n'attend pas
+     * ce bouton — il restaure lui-même —, mais lui permet de préparer plusieurs
+     * fichiers à l'avance.
+     */
+    public function restore(Media $media): RedirectResponse
+    {
+        Gate::authorize('view', $media);
+
+        if ($media->isArchived() && $media->restoring_at === null) {
+            RestoreMedia::dispatch($media);
+        }
+
+        return back()->with('success', "« {$media->original_name} » se reconstruit — quelques secondes.");
     }
 
     /**

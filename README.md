@@ -107,6 +107,16 @@ espace par compte, taille maximale d'une photo, d'une vidéo, d'un autre fichier
 la place réellement disponible sur le disque en regard. Les valeurs du `.env` ne servent que de
 défaut tant que rien n'a été réglé.
 
+**Après un temps sans consultation, la place se libère — sans perdre un octet.** Passé le
+délai réglé (7 jours par défaut, dans « Réglages »), une photo est archivée : un JPEG est
+recompressé en **JPEG XL avec ses données de reconstruction** (~20 % gagnés), un RAW, TIFF ou PNG
+passe en **zstd** (10 à 40 %). L'archive est aussitôt décompressée dans un fichier témoin et
+comparée à l'empreinte SHA-256 du dépôt : si un seul octet diffère, ou si le gain est inférieur
+à 5 %, l'original reste. Sinon, il cède sa place. Au téléchargement — ou d'avance, par
+« Recharger » —, l'original est reconstruit, vérifié à nouveau, et redevient « chaud ». Vidéos et
+HEIC, déjà au plus serré, ne sont jamais touchés : pour eux, seule la durée de vie d'un groupe
+libère de la place.
+
 **Un groupe peut avoir une durée de vie.** 7 jours, 30 jours, 1 an ou sans limite, choisie à
 la création et affichée sur le groupe. À l'échéance, un passage horaire détruit les fichiers
 **déposés dans le groupe** (fichier, aperçu, liens), retire ceux qui venaient d'une galerie — ils

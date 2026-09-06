@@ -24,7 +24,8 @@ use Illuminate\Support\Facades\Storage;
 #[Fillable([
     'user_id', 'uuid', 'original_name', 'extension', 'mime_type', 'kind', 'size_bytes',
     'checksum_sha256', 'disk_path', 'width', 'height', 'duration_seconds', 'frame_rate',
-    'thumbnail_path', 'processed_at',
+    'thumbnail_path', 'processed_at', 'archived_at', 'archive_path', 'archive_codec',
+    'archived_bytes', 'archive_skipped_at', 'restoring_at', 'last_accessed_at',
 ])]
 class Media extends Model
 {
@@ -44,7 +45,23 @@ class Media extends Model
             'duration_seconds' => 'float',
             'frame_rate' => 'float',
             'processed_at' => 'datetime',
+            'archived_at' => 'datetime',
+            'archived_bytes' => 'integer',
+            'archive_skipped_at' => 'datetime',
+            'restoring_at' => 'datetime',
+            'last_accessed_at' => 'datetime',
         ];
+    }
+
+    public function isArchived(): bool
+    {
+        return $this->archived_at !== null;
+    }
+
+    /** Ce que l'archive fait gagner sur le disque, en octets. */
+    public function savedBytes(): int
+    {
+        return $this->isArchived() ? max(0, $this->size_bytes - (int) $this->archived_bytes) : 0;
     }
 
     /** @return BelongsTo<User, $this> */

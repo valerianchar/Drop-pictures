@@ -58,7 +58,12 @@ export function connectRealtime(broadcast) {
         auth: { headers: { 'X-XSRF-TOKEN': xsrfToken() } },
     });
 
-    echo.private(`users.${broadcast.user_id}`).listen('.media.processed', () => quietReload(['media', 'storage']));
+    echo.private(`users.${broadcast.user_id}`)
+        .listen('.media.processed', () => quietReload(['media', 'storage']))
+        .listen('.media.restored', (event) => {
+            toast(`« ${event.name} » est de retour, prêt à télécharger.`);
+            quietReload(['media', 'storage']);
+        });
 }
 
 /**
@@ -85,7 +90,8 @@ export function subscribeGroup(groupId) {
 
             quietReload(['media', 'group']);
         })
-        .listen('.media.processed', () => quietReload(['media']));
+        .listen('.media.processed', () => quietReload(['media']))
+        .listen('.media.restored', () => quietReload(['media']));
 
     groupSubscriptions.set(groupId, channel);
 }

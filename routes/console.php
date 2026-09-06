@@ -1,9 +1,18 @@
 <?php
 
+use App\Console\Commands\ArchiveMediaCommand;
 use App\Console\Commands\ExpireGroupsCommand;
 use App\Console\Commands\PurgeExpiredShareLinksCommand;
 use App\Console\Commands\PurgeStaleUploadsCommand;
 use Illuminate\Support\Facades\Schedule;
+
+/*
+ * L'archivage sans perte tourne la nuit, quand le processeur ne manque à
+ * personne : recompresser un JPEG en JPEG XL prend quelques secondes chacun.
+ */
+Schedule::command(ArchiveMediaCommand::class)
+    ->dailyAt('04:00')
+    ->withoutOverlapping();
 
 /*
  * Un groupe à durée de vie se clôt à l'heure dite, pas au lendemain : ses

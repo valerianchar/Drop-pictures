@@ -19,6 +19,7 @@ class UpdateSettingsRequest extends FormRequest
             'photo_gb' => ['required', 'numeric', 'min:0.1', 'max:10000'],
             'video_gb' => ['required', 'numeric', 'min:0.1', 'max:10000'],
             'autre_gb' => ['required', 'numeric', 'min:0.1', 'max:10000'],
+            'archive_after_days' => ['required', 'integer', 'min:0', 'max:3650'],
         ];
     }
 
@@ -33,6 +34,8 @@ class UpdateSettingsRequest extends FormRequest
             'photo_gb.required' => 'Indique la taille maximale d’une photo, en Go.',
             'video_gb.required' => 'Indique la taille maximale d’une vidéo, en Go.',
             'autre_gb.required' => 'Indique la taille maximale des autres fichiers, en Go.',
+            'archive_after_days.required' => 'Indique le délai d’archivage, en jours (0 pour jamais).',
+            'archive_after_days.integer' => 'Un nombre de jours entier.',
             '*.numeric' => 'Un nombre de Go, par exemple 2,5.',
             '*.min' => 'Au moins 0,1 Go.',
             '*.max' => 'Ça fait beaucoup — vérifie la valeur.',

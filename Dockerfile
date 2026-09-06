@@ -23,9 +23,11 @@ RUN composer dump-autoload --classmap-authoritative --no-dev
 FROM dunglas/frankenphp:php8.4-alpine AS runtime
 
 # gd et exif lisent les photos pour l'aperçu ; ffmpeg sonde les vidéos et en
-# tire une image. Aucun des deux ne touche jamais au fichier d'origine.
+# tire une image. Aucun des trois ne touche jamais au fichier d'origine.
+# cjxl/djxl et zstd servent l'archivage sans perte : l'original recompressé se
+# reconstruit octet pour octet, l'empreinte SHA-256 le vérifie à chaque fois.
 RUN install-php-extensions pdo_mysql pdo_pgsql intl opcache gd exif \
-    && apk add --no-cache ffmpeg
+    && apk add --no-cache ffmpeg libjxl-tools zstd
 
 WORKDIR /app
 

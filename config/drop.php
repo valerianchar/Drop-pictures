@@ -108,6 +108,33 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Archivage sans perte
+    |--------------------------------------------------------------------------
+    |
+    | Passé ce nombre de jours sans consultation, une photo est archivée : son
+    | original est remplacé sur le disque par une forme compressée réversible —
+    | JPEG XL pour les JPEG (~20 % gagnés), zstd pour RAW, TIFF, PNG (10 à
+    | 40 %) — dont on reconstruit les octets exacts à la demande. Les vidéos et
+    | HEIC, déjà compressés au maximum, ne sont pas touchés. 0 désactive.
+    | Modifiable depuis les réglages de l'application.
+    |
+    | Un fichier n'est archivé que si l'archive fait gagner au moins
+    | archive_min_saving (5 %) et si l'original dépasse archive_min_bytes : en
+    | dessous, le jeu n'en vaut pas la chandelle.
+    |
+    */
+
+    'archive_after_days' => (int) env('DROP_ARCHIVE_AFTER_DAYS', 7),
+    'archive_min_bytes' => (int) env('DROP_ARCHIVE_MIN_BYTES', 256 * 1024),
+    'archive_min_saving' => (float) env('DROP_ARCHIVE_MIN_SAVING', 0.05),
+    'archive_batch' => (int) env('DROP_ARCHIVE_BATCH', 200),
+
+    'cjxl' => env('DROP_CJXL', 'cjxl'),
+    'djxl' => env('DROP_DJXL', 'djxl'),
+    'zstd' => env('DROP_ZSTD', 'zstd'),
+
+    /*
+    |--------------------------------------------------------------------------
     | ffmpeg / ffprobe
     |--------------------------------------------------------------------------
     |

@@ -18,6 +18,7 @@ final class DeleteMedia
         DB::transaction(function () use ($media): void {
             $directory = dirname($media->disk_path);
             $thumbnail = $media->thumbnail_path;
+            $archive = $media->archive_path;
 
             $media->delete();
 
@@ -25,6 +26,10 @@ final class DeleteMedia
 
             if ($thumbnail !== null) {
                 Storage::disk('local')->delete($thumbnail);
+            }
+
+            if ($archive !== null) {
+                Storage::disk('local')->delete($archive);
             }
         });
     }

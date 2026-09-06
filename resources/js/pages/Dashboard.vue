@@ -84,7 +84,9 @@ watch(() => props.media, (media) => {
 const storageLine = computed(() => {
     const files = props.storage.count;
 
-    return `${files.toLocaleString('fr-FR')} ${files > 1 ? 'fichiers' : 'fichier'} · ${props.storage.used_label} sur ${props.storage.quota_label}`;
+    const saved = props.storage.saved_label ? ` · ${props.storage.saved_label} économisés par l'archivage` : '';
+
+    return `${files.toLocaleString('fr-FR')} ${files > 1 ? 'fichiers' : 'fichier'} · ${props.storage.used_label} sur ${props.storage.quota_label}${saved}`;
 });
 </script>
 

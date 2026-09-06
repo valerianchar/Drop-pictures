@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\MediaResource;
 use App\Models\ShareLink;
+use App\Support\ColdStorage;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -37,9 +38,10 @@ class PublicShareController extends Controller
     {
         $link = $this->activeLink($token);
         $link->increment('downloads_count');
+        $media = ColdStorage::ensureHot($link->media);
 
         return response()
-            ->download($link->media->absolutePath(), $link->media->original_name, [
+            ->download($media->absolutePath(), $media->original_name, [
                 'Content-Type' => $link->media->mime_type,
                 'X-Checksum-SHA256' => $link->media->checksum_sha256,
                 'Cache-Control' => 'private, no-transform',
@@ -54,7 +56,7 @@ class PublicShareController extends Controller
         $link = $this->activeLink($token);
         $link->increment('downloads_count');
 
-        return MediaController::inline($link->media);
+        return MediaController::inline(ColdStorage::ensureHot($link->media));
     }
 
     public function thumbnail(string $token): BinaryFileResponse

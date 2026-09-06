@@ -42,12 +42,13 @@ class SettingsTest extends TestCase
         $admin = User::factory()->create(['is_admin' => true]);
 
         $this->actingAs($admin)
-            ->put('/reglages', ['quota_gb' => 200, 'photo_gb' => 0.5, 'video_gb' => 40, 'autre_gb' => 1])
+            ->put('/reglages', ['quota_gb' => 200, 'photo_gb' => 0.5, 'video_gb' => 40, 'autre_gb' => 1, 'archive_after_days' => 14])
             ->assertRedirect()
             ->assertSessionHas('success');
 
         $this->assertSame(200 * 1024 ** 3, Limits::quotaBytes());
         $this->assertSame(40 * 1024 ** 3, Limits::maxBytes());
+        $this->assertSame(14, Limits::archiveAfterDays());
 
         // Une photo de 600 Mo dépasse le demi-Go autorisé ; une vidéo de 30 Go passe.
         $this->actingAs($admin)->postJson('/depots', ['name' => 'grande.jpg', 'size' => 600 * 1024 ** 2])
@@ -67,7 +68,7 @@ class SettingsTest extends TestCase
         $user = User::factory()->create(['is_admin' => false]);
 
         $this->actingAs($user)->get('/reglages')->assertForbidden();
-        $this->actingAs($user)->put('/reglages', ['quota_gb' => 1, 'photo_gb' => 1, 'video_gb' => 1, 'autre_gb' => 1])->assertForbidden();
+        $this->actingAs($user)->put('/reglages', ['quota_gb' => 1, 'photo_gb' => 1, 'video_gb' => 1, 'autre_gb' => 1, 'archive_after_days' => 7])->assertForbidden();
     }
 
     public function test_the_values_are_checked(): void
@@ -75,8 +76,8 @@ class SettingsTest extends TestCase
         $admin = User::factory()->create(['is_admin' => true]);
 
         $this->actingAs($admin)
-            ->put('/reglages', ['quota_gb' => 0, 'photo_gb' => 'beaucoup', 'video_gb' => 1, 'autre_gb' => 1])
-            ->assertSessionHasErrors(['quota_gb', 'photo_gb']);
+            ->put('/reglages', ['quota_gb' => 0, 'photo_gb' => 'beaucoup', 'video_gb' => 1, 'autre_gb' => 1, 'archive_after_days' => -1])
+            ->assertSessionHasErrors(['quota_gb', 'photo_gb', 'archive_after_days']);
     }
 
     public function test_an_administrator_can_be_named_from_the_console(): void

@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Enums\MediaKind;
 use App\Http\Requests\UpdateSettingsRequest;
+use App\Models\Media;
+use App\Support\ColdStorage;
 use App\Support\FileSize;
 use App\Support\Limits;
 use App\Support\Settings;
@@ -32,6 +34,12 @@ class SettingsController extends Controller
                 'photo_gb' => round($limits['photo_bytes'] / self::GIB, 1),
                 'video_gb' => round($limits['video_bytes'] / self::GIB, 1),
                 'autre_gb' => round($limits['autre_bytes'] / self::GIB, 1),
+                'archive_after_days' => Limits::archiveAfterDays(),
+            ],
+            'archive' => [
+                'available' => ColdStorage::available(),
+                'archived_count' => Media::query()->whereNotNull('archived_at')->count(),
+                'saved_label' => FileSize::format((int) Media::query()->whereNotNull('archived_at')->selectRaw('COALESCE(SUM(size_bytes - archived_bytes), 0) as saved')->value('saved')),
             ],
             'disk' => [
                 'free_label' => $free === false ? null : FileSize::format((int) $free),
@@ -49,6 +57,8 @@ class SettingsController extends Controller
         foreach (MediaKind::cases() as $kind) {
             Settings::set(Limits::keyFor($kind), $request->maxBytesFor($kind));
         }
+
+        Settings::set('archive_after_days', $request->integer('archive_after_days'));
 
         return back()->with('success', 'Limites enregistrées — elles s’appliquent aux prochains dépôts.');
     }
