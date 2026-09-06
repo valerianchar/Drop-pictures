@@ -123,9 +123,10 @@ la création et affichée sur le groupe. À l'échéance, un passage horaire dé
 y restent — et supprime le groupe avec ses invitations.
 
 **Plusieurs originaux d'un coup.** « Tout télécharger » sur un groupe, ou le mode « Sélectionner »
-de la galerie, produisent un ZIP fabriqué en flux, méthode *store* — aucune compression : chaque
-entrée est le fichier d'origine, octet pour octet, et un ZIP de plusieurs Go ne passe jamais par la
-mémoire de PHP.
+— dans la galerie comme dans un groupe —, produisent un ZIP fabriqué en flux, méthode *store* —
+aucune compression : chaque entrée est le fichier d'origine, octet pour octet, et un ZIP de
+plusieurs Go ne passe jamais par la mémoire de PHP. Sur iPhone, la même sélection part vers Photos
+par la feuille de partage. Depuis la galerie, elle peut aussi être envoyée dans un groupe.
 
 **Le groupe se met à jour tout seul.** Chaque groupe a son canal privé (Soketi, protocole
 Pusher, comme pointage) : un fichier déposé ou partagé par un membre apparaît chez les autres sans
