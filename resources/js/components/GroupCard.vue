@@ -15,7 +15,12 @@ const emit = defineEmits(['invite']);
             <h3 class="truncate text-[16px] text-text">{{ props.group.name }}</h3>
             <span class="badge badge-neutral shrink-0">{{ props.group.members_label }}</span>
         </div>
-        <p class="mb-3 text-[13px] text-text-muted">{{ props.group.detail }}</p>
+        <p class="mb-3 text-[13px] text-text-muted">
+            {{ props.group.detail }}
+            <template v-if="props.group.expires_label">
+                · <span :class="props.group.is_expiring_soon ? 'text-warning' : ''">{{ props.group.expires_label }}</span>
+            </template>
+        </p>
         <button type="button" class="btn btn-ghost btn-sm" @click.prevent.stop="emit('invite', props.group)">
             <UserPlus class="size-4" />
             Inviter des membres

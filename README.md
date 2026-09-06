@@ -107,6 +107,16 @@ espace par compte, taille maximale d'une photo, d'une vidéo, d'un autre fichier
 la place réellement disponible sur le disque en regard. Les valeurs du `.env` ne servent que de
 défaut tant que rien n'a été réglé.
 
+**Un groupe peut avoir une durée de vie.** 7 jours, 30 jours, 1 an ou sans limite, choisie à
+la création et affichée sur le groupe. À l'échéance, un passage horaire détruit les fichiers
+**déposés dans le groupe** (fichier, aperçu, liens), retire ceux qui venaient d'une galerie — ils
+y restent — et supprime le groupe avec ses invitations.
+
+**Plusieurs originaux d'un coup.** « Tout télécharger » sur un groupe, ou le mode « Sélectionner »
+de la galerie, produisent un ZIP fabriqué en flux, méthode *store* — aucune compression : chaque
+entrée est le fichier d'origine, octet pour octet, et un ZIP de plusieurs Go ne passe jamais par la
+mémoire de PHP.
+
 **Le groupe se met à jour tout seul.** Chaque groupe a son canal privé (Soketi, protocole
 Pusher, comme pointage) : un fichier déposé ou partagé par un membre apparaît chez les autres sans
 recharger, avec une notification « Léo a ajouté … » ; l'aperçu prêt complète la carte de la même

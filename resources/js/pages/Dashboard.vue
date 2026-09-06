@@ -1,14 +1,15 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import { TabsContent, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
-import { Plus } from '@lucide/vue';
+import { CheckSquare, Plus } from '@lucide/vue';
 import Dropzone from '../components/Dropzone.vue';
 import GroupCard from '../components/GroupCard.vue';
 import InviteDialog from '../components/InviteDialog.vue';
 import MediaDetailsDialog from '../components/MediaDetailsDialog.vue';
 import MediaGrid from '../components/MediaGrid.vue';
 import NewGroupDialog from '../components/NewGroupDialog.vue';
+import SelectionBar from '../components/SelectionBar.vue';
 import ShareDialog from '../components/ShareDialog.vue';
 import ShareLinkRow from '../components/ShareLinkRow.vue';
 import TagFilter from '../components/TagFilter.vue';
@@ -23,6 +24,8 @@ const props = defineProps({
     media: { type: Array, required: true },
     groups: { type: Array, required: true },
     share_links: { type: Array, required: true },
+    lifetimes: { type: Array, required: true },
+    bulk_download_url: { type: String, required: true },
 });
 
 const page = usePage();
@@ -57,6 +60,27 @@ function openShare(media) {
     sharing.value = media;
 }
 
+/* Mode sélection : plusieurs fichiers d'un coup, dans un ZIP sans compression. */
+const selecting = ref(false);
+const selectedIds = ref([]);
+const selected = computed(() => props.media.filter((item) => selectedIds.value.includes(item.id)));
+
+function toggle(media) {
+    selectedIds.value = selectedIds.value.includes(media.id)
+        ? selectedIds.value.filter((id) => id !== media.id)
+        : [...selectedIds.value, media.id];
+}
+
+function closeSelection() {
+    selecting.value = false;
+    selectedIds.value = [];
+}
+
+// Un filtre change la liste : la sélection ne garde que ce qui reste visible.
+watch(() => props.media, (media) => {
+    selectedIds.value = selectedIds.value.filter((id) => media.some((item) => item.id === id));
+});
+
 const storageLine = computed(() => {
     const files = props.storage.count;
 
@@ -90,9 +114,29 @@ const storageLine = computed(() => {
         </TabsList>
 
         <TabsContent value="fichiers">
-            <TagFilter :tags="tags" :kinds="kinds" :filters="filters" @change="applyFilters" />
+            <div class="mb-5 flex flex-wrap items-start gap-2">
+                <TagFilter class="mb-0! min-w-0 flex-1" :tags="tags" :kinds="kinds" :filters="filters" @change="applyFilters" />
+                <button
+                    v-if="media.length"
+                    type="button"
+                    class="btn btn-secondary btn-sm shrink-0"
+                    :class="selecting && 'border-accent-600 text-accent-400'"
+                    @click="selecting ? closeSelection() : (selecting = true)"
+                >
+                    <CheckSquare class="size-4" />
+                    {{ selecting ? 'Terminer' : 'Sélectionner' }}
+                </button>
+            </div>
 
-            <MediaGrid v-if="media.length" :media="media" @open="details = $event" @share="openShare" />
+            <MediaGrid
+                v-if="media.length"
+                :media="media"
+                :selectable="selecting"
+                :selected-ids="selectedIds"
+                @open="details = $event"
+                @share="openShare"
+                @toggle="toggle"
+            />
 
             <div v-else class="card py-12 text-center">
                 <p class="text-text-muted">
@@ -127,8 +171,18 @@ const storageLine = computed(() => {
         </TabsContent>
     </TabsRoot>
 
+    <SelectionBar
+        v-if="selecting"
+        :selected="selected"
+        :total="media.length"
+        :download-url="bulk_download_url"
+        @all="selectedIds = media.map((item) => item.id)"
+        @clear="selectedIds = []"
+        @close="closeSelection"
+    />
+
     <MediaDetailsDialog :media="currentDetails" @close="details = null" @share="openShare" />
     <ShareDialog :media="currentSharing" :groups="groups" @close="sharing = null" />
     <InviteDialog :group="inviting" @close="inviting = null" />
-    <NewGroupDialog v-model:open="creatingGroup" @created="tab = 'groupes'" />
+    <NewGroupDialog v-model:open="creatingGroup" :lifetimes="lifetimes" @created="tab = 'groupes'" />
 </template>

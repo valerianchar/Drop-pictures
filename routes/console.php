@@ -1,8 +1,17 @@
 <?php
 
+use App\Console\Commands\ExpireGroupsCommand;
 use App\Console\Commands\PurgeExpiredShareLinksCommand;
 use App\Console\Commands\PurgeStaleUploadsCommand;
 use Illuminate\Support\Facades\Schedule;
+
+/*
+ * Un groupe à durée de vie se clôt à l'heure dite, pas au lendemain : ses
+ * fichiers déposés sont détruits, c'est une promesse faite aux membres.
+ */
+Schedule::command(ExpireGroupsCommand::class)
+    ->hourly()
+    ->withoutOverlapping();
 
 /*
  * Un dépôt interrompu laisse un fichier partiel sur le disque. Le passage est

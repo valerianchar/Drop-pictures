@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\GroupLifetime;
 use App\Enums\MediaKind;
 use App\Http\Resources\GroupResource;
 use App\Http\Resources\MediaResource;
@@ -41,6 +42,8 @@ class DashboardController extends Controller
             )->resolve(),
             'upload_url' => route('uploads.store'),
             'group_url' => route('groups.store'),
+            'lifetimes' => GroupLifetime::options(),
+            'bulk_download_url' => route('media.download-many'),
         ]);
     }
 }

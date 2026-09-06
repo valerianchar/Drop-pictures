@@ -4,9 +4,11 @@ import MediaCard from './MediaCard.vue';
 const props = defineProps({
     media: { type: Array, required: true },
     action: { type: String, default: 'share' },
+    selectable: { type: Boolean, default: false },
+    selectedIds: { type: Array, default: () => [] },
 });
 
-const emit = defineEmits(['open', 'share']);
+const emit = defineEmits(['open', 'share', 'toggle']);
 </script>
 
 <template>
@@ -16,8 +18,11 @@ const emit = defineEmits(['open', 'share']);
             :key="item.id"
             :media="item"
             :action="props.action"
+            :selectable="props.selectable"
+            :selected="props.selectedIds.includes(item.id)"
             @open="emit('open', $event)"
             @share="emit('share', $event)"
+            @toggle="emit('toggle', $event)"
         />
     </div>
 </template>

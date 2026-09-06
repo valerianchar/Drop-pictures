@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ArrowLeft, LogOut, RefreshCw, Trash2, UserPlus } from '@lucide/vue';
+import { ArrowLeft, Download, LogOut, RefreshCw, Trash2, UserPlus } from '@lucide/vue';
 import ConfirmDialog from '../../components/ConfirmDialog.vue';
 import Dropzone from '../../components/Dropzone.vue';
 import InviteDialog from '../../components/InviteDialog.vue';
@@ -9,6 +9,7 @@ import MediaDetailsDialog from '../../components/MediaDetailsDialog.vue';
 import MediaGrid from '../../components/MediaGrid.vue';
 import UploadPanel from '../../components/UploadPanel.vue';
 import { useUploader } from '../../composables/useUploader';
+import { formatBytes } from '../../format';
 import { subscribeGroup, unsubscribeGroup } from '../../realtime';
 import { routes } from '../../routes';
 
@@ -45,6 +46,7 @@ const confirming = ref(null);
 const processing = ref(false);
 
 const currentDetails = computed(() => (details.value ? props.media.find((item) => item.id === details.value.id) ?? null : null));
+const totalLabel = computed(() => formatBytes(props.media.reduce((sum, item) => sum + item.size_bytes, 0)));
 
 const confirmations = {
     leave: {
@@ -90,12 +92,20 @@ function confirm() {
                 {{ group.members_label }} · {{ group.detail }} —
                 <span class="font-semibold text-accent-400">en qualité d'origine</span>
             </p>
+            <p v-if="group.expires_label" class="mt-1 text-[13px]" :class="group.is_expiring_soon ? 'text-warning' : 'text-text-muted'">
+                {{ group.expires_label }} — à l'échéance, les fichiers déposés ici sont détruits ; ceux partagés depuis une galerie y restent.
+            </p>
         </div>
         <div class="flex flex-wrap gap-2">
             <button type="button" class="btn btn-primary" @click="inviting = true">
                 <UserPlus class="size-[18px]" />
                 Inviter des membres
             </button>
+            <a v-if="media.length" :href="group.download_url" class="btn btn-secondary no-underline hover:no-underline" download>
+                <Download class="size-4" />
+                Tout télécharger
+                <span class="font-mono text-[12px] text-text-muted">{{ totalLabel }}</span>
+            </a>
             <button v-if="group.is_owner" type="button" class="btn btn-secondary" @click="confirming = 'regenerate'">
                 <RefreshCw class="size-4" />
                 Nouveau lien

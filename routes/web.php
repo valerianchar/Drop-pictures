@@ -13,6 +13,7 @@ use App\Http\Controllers\PublicShareController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ShareLinkController;
 use App\Http\Controllers\UploadController;
+use App\Http\Controllers\ZipDownloadController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
@@ -62,6 +63,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/depots/{upload:uuid}/terminer', [UploadController::class, 'finish'])->name('uploads.finish');
     Route::delete('/depots/{upload:uuid}', [UploadController::class, 'destroy'])->name('uploads.destroy');
 
+    // Avant la route paramétrée : « telecharger » n'est pas un identifiant de fichier.
+    Route::get('/fichiers/telecharger', [ZipDownloadController::class, 'many'])->name('media.download-many');
     Route::get('/fichiers/{media}/telecharger', [MediaController::class, 'download'])->name('media.download');
     Route::get('/fichiers/{media}/voir', [MediaController::class, 'view'])->name('media.view');
     Route::get('/fichiers/{media}/apercu', [MediaController::class, 'thumbnail'])->name('media.thumbnail');
@@ -73,6 +76,7 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/groupes', [GroupController::class, 'store'])->name('groups.store');
     Route::get('/groupes/{group}', [GroupController::class, 'show'])->name('groups.show');
+    Route::get('/groupes/{group}/telecharger', [ZipDownloadController::class, 'group'])->name('groups.download');
     Route::delete('/groupes/{group}', [GroupController::class, 'destroy'])->name('groups.destroy');
     Route::post('/groupes/{group}/quitter', [GroupController::class, 'leave'])->name('groups.leave');
     Route::post('/groupes/{group}/lien', [GroupController::class, 'regenerateInviteLink'])->name('groups.invite-link.regenerate');

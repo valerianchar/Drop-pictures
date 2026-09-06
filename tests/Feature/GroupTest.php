@@ -20,7 +20,7 @@ class GroupTest extends TestCase
 
         $this->actingAs($user)
             ->from('/')
-            ->post('/groupes', ['name' => 'Week-end à Annecy'])
+            ->post('/groupes', ['name' => 'Week-end à Annecy', 'lifetime' => 'illimite'])
             ->assertRedirect('/')
             ->assertSessionHas('success');
 

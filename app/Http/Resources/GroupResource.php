@@ -29,10 +29,28 @@ class GroupResource extends JsonResource
                 ? 'Aucun fichier pour l’instant'
                 : $files.' '.($files > 1 ? 'fichiers partagés' : 'fichier partagé'),
             'is_owner' => $this->owner_id === $request->user()?->id,
+            'expires_at' => $this->expires_at?->toIso8601String(),
+            'expires_label' => $this->expiresLabel(),
+            'is_expiring_soon' => $this->expires_at !== null && $this->expires_at->lessThan(now()->addDays(2)),
             'url' => route('groups.show', $this->id),
+            'download_url' => route('groups.download', $this->id),
             'invite_url' => $this->inviteUrl(),
             'invite_email_url' => route('groups.invitations.store', $this->id),
             'share_url' => route('groups.media.store', $this->id),
         ];
+    }
+
+    /** « Expire dans 6 jours », « Expire aujourd'hui », ou rien. */
+    private function expiresLabel(): ?string
+    {
+        if ($this->expires_at === null) {
+            return null;
+        }
+
+        if ($this->expires_at->isPast()) {
+            return 'Expiré';
+        }
+
+        return 'Expire '.$this->expires_at->diffForHumans(['parts' => 1]);
     }
 }

@@ -25,7 +25,7 @@ services:
             - mysql
     # Temps réel des groupes : Soketi parle le protocole Pusher,
     # en local comme en production — rien ne part jamais chez pusher.com.
-    soketi:
+    drop-soketi:
         image: 'quay.io/soketi/soketi:1.6-16-alpine'
         environment:
             SOKETI_DEFAULT_APP_ID: '${PUSHER_APP_ID:-drop-picture}'

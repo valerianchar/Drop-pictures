@@ -40,4 +40,9 @@ class GroupFactory extends Factory
     {
         return $this->state(fn () => ['name' => $name]);
     }
+
+    public function expiring(\DateTimeInterface $at): static
+    {
+        return $this->state(fn () => ['expires_at' => $at]);
+    }
 }

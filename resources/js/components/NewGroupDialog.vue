@@ -7,11 +7,12 @@ import { routes } from '../routes';
 
 const props = defineProps({
     open: { type: Boolean, required: true },
+    lifetimes: { type: Array, required: true },
 });
 
 const emit = defineEmits(['update:open', 'created']);
 
-const form = useForm({ name: '' });
+const form = useForm({ name: '', lifetime: 'illimite' });
 
 watch(
     () => props.open,
@@ -38,14 +39,36 @@ function submit() {
 
 <template>
     <AppDialog :open="props.open" title="Nouveau groupe" @update:open="emit('update:open', $event)">
-        <form id="new-group" @submit.prevent="submit">
-            <FormField
-                label="Nom du groupe"
-                :error="form.errors.name"
-                hint="Tu pourras inviter les membres par lien — ils reçoivent les fichiers en qualité d'origine."
-            >
+        <form id="new-group" class="flex flex-col gap-4" @submit.prevent="submit">
+            <FormField label="Nom du groupe" :error="form.errors.name">
                 <input v-model="form.name" type="text" class="field" placeholder="Week-end à Annecy" maxlength="80" required autofocus />
             </FormField>
+
+            <div>
+                <p class="field-label">Durée de vie</p>
+                <div class="flex flex-wrap gap-2">
+                    <button
+                        v-for="option in props.lifetimes"
+                        :key="option.value"
+                        type="button"
+                        class="chip"
+                        :data-active="form.lifetime === option.value"
+                        @click="form.lifetime = option.value"
+                    >
+                        {{ option.label }}
+                    </button>
+                </div>
+                <p v-if="form.errors.lifetime" class="mt-2 text-[13px] text-danger-strong">{{ form.errors.lifetime }}</p>
+                <p v-else class="hint mt-2">
+                    <template v-if="form.lifetime === 'illimite'">Le groupe reste tant que tu ne le supprimes pas.</template>
+                    <template v-else>
+                        À l'échéance, le groupe disparaît et <strong class="text-text">les fichiers déposés dedans sont détruits</strong> ;
+                        ceux partagés depuis une galerie y restent.
+                    </template>
+                </p>
+            </div>
+
+            <p class="hint">Tu pourras inviter les membres par lien — ils reçoivent les fichiers en qualité d'origine.</p>
         </form>
 
         <template #actions>

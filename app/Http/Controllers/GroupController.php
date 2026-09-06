@@ -18,9 +18,11 @@ class GroupController extends Controller
 {
     public function store(StoreGroupRequest $request, CreateGroup $createGroup): RedirectResponse
     {
-        $group = $createGroup->handle($request->user(), $request->string('name')->value());
+        $group = $createGroup->handle($request->user(), $request->string('name')->value(), $request->lifetime());
 
-        return back()->with('success', "Groupe « {$group->name} » créé — invite tes proches par lien.");
+        return back()->with('success', $group->expires_at === null
+            ? "Groupe « {$group->name} » créé — invite tes proches par lien."
+            : "Groupe « {$group->name} » créé jusqu’au {$group->expires_at->translatedFormat('j F')} — invite tes proches par lien.");
     }
 
     public function show(Request $request, Group $group): Response
