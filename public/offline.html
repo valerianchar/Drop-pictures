@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0e0a">
+    <title>Hors ligne — Drop Picture</title>
+    <style>
+        :root { color-scheme: dark; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 28px;
+            background: #0a0e0a;
+            color: #edf5ec;
+            font-family: Figtree, system-ui, sans-serif;
+            text-align: center;
+        }
+
+        .brand {
+            font-family: "Space Grotesk", system-ui, sans-serif;
+            font-weight: 700;
+            font-size: 20px;
+            letter-spacing: -0.02em;
+        }
+
+        .brand span { color: #68ff9c; }
+
+        h1 {
+            margin: 28px 0 0;
+            font-family: "Space Grotesk", system-ui, sans-serif;
+            font-size: 26px;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+
+        p {
+            margin: 8px 0 0;
+            font-size: 14px;
+            color: #9db29c;
+            line-height: 1.55;
+        }
+
+        button {
+            margin-top: 24px;
+            height: 40px;
+            padding: 0 16px;
+            background: #3dff7a;
+            border: none;
+            border-radius: 10px;
+            color: #06130a;
+            font: inherit;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        button:hover { background: #68ff9c; box-shadow: 0 0 0 1px rgba(61,255,122,0.35), 0 0 24px rgba(61,255,122,0.22); }
+    </style>
+</head>
+<body>
+    <main>
+        <div class="brand">drop<span>*</span>picture</div>
+        <h1>Hors ligne</h1>
+        <p>
+            Tes fichiers restent sur le serveur, intacts, en qualité d'origine.<br>
+            Reconnecte-toi au réseau pour les retrouver.
+        </p>
+        <button type="button" onclick="location.reload()">Réessayer</button>
+    </main>
+</body>
+</html>
