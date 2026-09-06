@@ -2,9 +2,11 @@
 
 namespace App\Actions;
 
+use App\Enums\MediaKind;
 use App\Models\Upload;
 use App\Models\User;
 use App\Support\FileSize;
+use App\Support\Limits;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -18,15 +20,16 @@ final class StartUpload
 {
     public function handle(User $user, string $originalName, int $sizeBytes, ?string $mimeType): Upload
     {
-        $maxBytes = (int) config('drop.max_file_bytes');
+        $kind = MediaKind::fromExtension(pathinfo($originalName, PATHINFO_EXTENSION));
+        $maxBytes = Limits::maxBytesFor($kind);
 
         if ($sizeBytes > $maxBytes) {
             throw ValidationException::withMessages([
-                'size' => 'Ce fichier dépasse la taille maximale de '.FileSize::format($maxBytes).'.',
+                'size' => 'Ce fichier dépasse la taille maximale de '.FileSize::format($maxBytes).' pour une '.self::kindLabel($kind).'.',
             ]);
         }
 
-        $quota = (int) config('drop.quota_bytes');
+        $quota = Limits::quotaBytes();
         $pending = (int) $user->uploads()->sum('size_bytes');
 
         if ($user->usedBytes() + $pending + $sizeBytes > $quota) {
@@ -75,6 +78,15 @@ final class StartUpload
                 'size' => 'Plus assez de place sur le serveur pour ce fichier : '.FileSize::format($available).' disponibles.',
             ]);
         }
+    }
+
+    private static function kindLabel(MediaKind $kind): string
+    {
+        return match ($kind) {
+            MediaKind::Photo => 'photo',
+            MediaKind::Video => 'vidéo',
+            MediaKind::Autre => 'fichier de ce type',
+        };
     }
 
     /**

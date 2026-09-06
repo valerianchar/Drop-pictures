@@ -101,6 +101,17 @@ octets déposés, puisque rien n'est jamais compressé. Le disque du serveur res
 un dépôt qui entamerait la réserve (`DROP_DISK_RESERVE_BYTES`, 5 Go) est refusé à l'ouverture,
 plutôt que d'échouer au dernier morceau.
 
+**Les limites se règlent dans l'application.** Le premier compte créé administre l'instance
+(`php artisan drop:admin e-mail` en nomme d'autres) et trouve « Réglages » dans son menu :
+espace par compte, taille maximale d'une photo, d'une vidéo, d'un autre fichier — en Go, avec
+la place réellement disponible sur le disque en regard. Les valeurs du `.env` ne servent que de
+défaut tant que rien n'a été réglé.
+
+**Photothèque sur téléphone.** Sur mobile, le bouton « Déposer » annonce photos et vidéos pour
+que le système propose la photothèque et l'appareil, et nomme HEIC/HEIF explicitement : sans
+cela, Safari convertirait les HEIC en JPEG au passage. Sur ordinateur, aucun filtre — un RAW au
+type inconnu reste sélectionnable.
+
 **Partager par lien ne produit aucune version.** Un lien est un jeton de 16 caractères qui
 donne accès au fichier d'origine — sans limite, ou pour 7 jours. Expiré, il répond 404 comme
 un lien inexistant.

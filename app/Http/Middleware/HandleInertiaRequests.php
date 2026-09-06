@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\Limits;
 use App\Support\PendingInvitation;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -30,6 +31,7 @@ class HandleInertiaRequests extends Middleware
                     'first_name' => $user->first_name,
                     'email' => $user->email,
                     'initials' => $user->initials,
+                    'is_admin' => $user->is_admin,
                 ],
             ],
             'flash' => [
@@ -41,7 +43,8 @@ class HandleInertiaRequests extends Middleware
             'registration_open' => config('drop.registration_open'),
             'upload' => [
                 'chunk_bytes' => (int) config('drop.chunk_bytes'),
-                'max_file_bytes' => (int) config('drop.max_file_bytes'),
+                // La plus grande des limites, pour les textes ; le serveur juge fichier par fichier.
+                'max_file_bytes' => Limits::maxBytes(),
             ],
             // Le groupe qui attend derrière l'écran de connexion ou d'inscription.
             'pending_group' => fn (): ?string => PendingInvitation::groupName(),

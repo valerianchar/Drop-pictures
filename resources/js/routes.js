@@ -11,6 +11,7 @@ export const routes = {
     resetPassword: '/nouveau-mot-de-passe',
     uploads: '/depots',
     groups: '/groupes',
+    settings: '/reglages',
     mediaTags: (mediaId) => `/fichiers/${mediaId}/tags`,
     mediaDelete: (mediaId) => `/fichiers/${mediaId}`,
     mediaShareLinks: (mediaId) => `/fichiers/${mediaId}/liens`,

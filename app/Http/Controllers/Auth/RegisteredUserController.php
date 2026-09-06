@@ -21,7 +21,11 @@ class RegisteredUserController extends Controller
 
     public function store(RegisterRequest $request, JoinGroup $joinGroup): RedirectResponse
     {
-        $user = User::create($request->only('name', 'email', 'password'));
+        // Le premier compte créé administre l'instance : c'est lui qui règle les limites.
+        $user = User::create([
+            ...$request->only('name', 'email', 'password'),
+            'is_admin' => User::query()->doesntExist(),
+        ]);
 
         Auth::login($user);
         $request->session()->regenerate();

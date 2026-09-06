@@ -4,6 +4,7 @@ namespace App\Queries;
 
 use App\Models\User;
 use App\Support\FileSize;
+use App\Support\Limits;
 
 final class StorageUsage
 {
@@ -16,7 +17,7 @@ final class StorageUsage
     {
         $count = $user->media()->count();
         $used = $user->usedBytes();
-        $quota = (int) config('drop.quota_bytes');
+        $quota = Limits::quotaBytes();
 
         return [
             'count' => $count,

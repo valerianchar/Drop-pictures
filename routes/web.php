@@ -10,6 +10,7 @@ use App\Http\Controllers\GroupInvitationController;
 use App\Http\Controllers\GroupMediaController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\PublicShareController;
+use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ShareLinkController;
 use App\Http\Controllers\UploadController;
 use Illuminate\Support\Facades\Route;
@@ -48,6 +49,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/deconnexion', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+
+    Route::middleware('can:manage-settings')->group(function () {
+        Route::get('/reglages', [SettingsController::class, 'edit'])->name('settings.edit');
+        Route::put('/reglages', [SettingsController::class, 'update'])->name('settings.update');
+    });
 
     // Dépôt par morceaux — JSON.
     Route::post('/depots', [UploadController::class, 'store'])->name('uploads.store');

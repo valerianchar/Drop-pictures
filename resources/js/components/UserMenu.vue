@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenuRoot, DropdownMenuTrigger } from 'reka-ui';
-import { LogOut } from '@lucide/vue';
+import { LogOut, Settings } from '@lucide/vue';
 import { routes } from '../routes';
 
 const page = usePage();
@@ -31,6 +31,14 @@ function logout() {
                     <p class="text-[14px] font-semibold">{{ user.name }}</p>
                     <p class="truncate font-mono text-[11px] text-text-muted">{{ user.email }}</p>
                 </div>
+                <DropdownMenuItem
+                    v-if="user.is_admin"
+                    class="flex cursor-pointer items-center gap-2 rounded-sm px-2.5 py-2 text-[14px] outline-none data-[highlighted]:bg-tint-accent-8 data-[highlighted]:text-accent-300"
+                    @select="router.visit(routes.settings)"
+                >
+                    <Settings class="size-4" />
+                    Réglages
+                </DropdownMenuItem>
                 <DropdownMenuItem
                     class="flex cursor-pointer items-center gap-2 rounded-sm px-2.5 py-2 text-[14px] outline-none data-[highlighted]:bg-tint-accent-8 data-[highlighted]:text-accent-300"
                     @select="logout"

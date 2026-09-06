@@ -2,9 +2,11 @@
 
 namespace App\Providers;
 
+use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Date;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -21,6 +23,9 @@ class AppServiceProvider extends ServiceProvider
         // Les libellés de dates de l'interface sont en français (« il y a 2 h », « 6 sept. »).
         Carbon::setLocale(config('app.locale'));
         Date::use(CarbonImmutable::class);
+
+        // Les réglages de l'instance n'ont pas de modèle à protéger : une porte nommée suffit.
+        Gate::define('manage-settings', fn (User $user): bool => $user->is_admin);
 
         $this->keepGeneratedUrlsOnTheSameSchemeAsTheSite();
     }
