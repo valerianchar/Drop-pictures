@@ -1,27 +1,34 @@
 <script setup>
 import { computed } from 'vue';
-import { Download, X } from '@lucide/vue';
+import { Download, ImageDown, LoaderCircle, Users, X } from '@lucide/vue';
+import { useSaveToPhotos } from '../composables/useSaveToPhotos';
 import { formatBytes } from '../format';
 
 /**
- * La barre du mode sélection : combien de fichiers, quel poids, et le ZIP à
- * télécharger — un archive « store », chaque original y est tel quel.
+ * La barre du mode sélection : combien de fichiers, quel poids, et quoi en
+ * faire — un ZIP sans compression, un envoi vers un groupe, ou (iPhone) la
+ * feuille de partage pour les mettre dans Photos.
  */
 const props = defineProps({
     selected: { type: Array, required: true },
     total: { type: Number, required: true },
     downloadUrl: { type: String, required: true },
+    canShareToGroup: { type: Boolean, default: true },
 });
 
-const emit = defineEmits(['all', 'clear', 'close']);
+const emit = defineEmits(['all', 'clear', 'close', 'to-group']);
+
+const { saving, progress, saveMany, isApple } = useSaveToPhotos();
 
 const bytes = computed(() => props.selected.reduce((sum, item) => sum + item.size_bytes, 0));
 const zipUrl = computed(() => `${props.downloadUrl}?${props.selected.map((item) => `ids[]=${item.id}`).join('&')}`);
+const photosOnly = computed(() => props.selected.every((item) => item.kind === 'photo' || item.is_video));
+const percent = computed(() => Math.round(progress.value * 100));
 </script>
 
 <template>
     <div
-        class="animate-pop fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+1rem)] z-30 mx-auto flex max-w-[720px] flex-wrap items-center gap-3 rounded-lg border border-neutral-700 bg-surface-2 px-4 py-3 shadow-lg"
+        class="animate-pop fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+1rem)] z-30 mx-auto flex max-w-[860px] flex-wrap items-center gap-2 rounded-lg border border-neutral-700 bg-surface-2 px-4 py-3 shadow-lg"
     >
         <p class="text-[14px]">
             <strong class="font-heading">{{ props.selected.length }}</strong>
@@ -31,6 +38,31 @@ const zipUrl = computed(() => `${props.downloadUrl}?${props.selected.map((item) 
         <span class="flex-1" />
         <button v-if="props.selected.length < props.total" type="button" class="btn btn-ghost btn-sm" @click="emit('all')">Tout</button>
         <button v-if="props.selected.length" type="button" class="btn btn-ghost btn-sm" @click="emit('clear')">Aucun</button>
+
+        <button
+            v-if="props.canShareToGroup"
+            type="button"
+            class="btn btn-secondary btn-sm"
+            :disabled="!props.selected.length"
+            @click="emit('to-group')"
+        >
+            <Users class="size-4" />
+            Vers un groupe
+        </button>
+
+        <button
+            v-if="isApple && photosOnly"
+            type="button"
+            class="btn btn-secondary btn-sm"
+            :disabled="!props.selected.length || saving"
+            @click="saveMany(props.selected)"
+        >
+            <LoaderCircle v-if="saving" class="size-4 animate-spin" />
+            <ImageDown v-else class="size-4" />
+            <template v-if="saving">{{ percent }} %</template>
+            <template v-else>Dans Photos</template>
+        </button>
+
         <a
             :href="zipUrl"
             class="btn btn-primary btn-sm no-underline hover:no-underline"
@@ -39,7 +71,7 @@ const zipUrl = computed(() => `${props.downloadUrl}?${props.selected.map((item) 
             download
         >
             <Download class="size-4" />
-            Télécharger en ZIP
+            ZIP
         </a>
         <button type="button" class="btn btn-secondary iconbtn btn-sm" aria-label="Quitter la sélection" @click="emit('close')">
             <X class="size-4" />

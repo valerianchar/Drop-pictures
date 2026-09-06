@@ -63,8 +63,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/depots/{upload:uuid}/terminer', [UploadController::class, 'finish'])->name('uploads.finish');
     Route::delete('/depots/{upload:uuid}', [UploadController::class, 'destroy'])->name('uploads.destroy');
 
-    // Avant la route paramétrée : « telecharger » n'est pas un identifiant de fichier.
+    // Avant la route paramétrée : « telecharger » et « choisir » ne sont pas des identifiants de fichier.
     Route::get('/fichiers/telecharger', [ZipDownloadController::class, 'many'])->name('media.download-many');
+    Route::get('/fichiers/choisir', [MediaController::class, 'index'])->name('media.index');
     Route::get('/fichiers/{media}/telecharger', [MediaController::class, 'download'])->name('media.download');
     Route::get('/fichiers/{media}/voir', [MediaController::class, 'view'])->name('media.view');
     Route::get('/fichiers/{media}/apercu', [MediaController::class, 'thumbnail'])->name('media.thumbnail');

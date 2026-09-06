@@ -101,5 +101,73 @@ export function useSaveToPhotos() {
         }
     }
 
-    return { saving, progress, save, isApple: isApplePhotosDevice() };
+    /**
+     * Plusieurs originaux d'un coup dans la feuille de partage : iOS propose
+     * « Enregistrer N images ». Les fichiers sont lus l'un après l'autre ; la
+     * progression est globale.
+     */
+    async function saveMany(mediaList) {
+        if (saving.value || !mediaList.length) {
+            return;
+        }
+
+        const total = mediaList.reduce((sum, media) => sum + media.size_bytes, 0);
+
+        if (typeof navigator.share !== 'function' || typeof navigator.canShare !== 'function' || total > SHARE_LIMIT_BYTES) {
+            toast('Trop lourd pour la feuille de partage : télécharge le ZIP, ou enregistre les photos une par une.', { error: true });
+
+            return;
+        }
+
+        saving.value = true;
+        progress.value = 0;
+        let received = 0;
+
+        try {
+            const files = [];
+
+            for (const media of mediaList) {
+                const response = await fetch(media.download_url, { credentials: 'same-origin' });
+
+                if (!response.ok || !response.body) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const reader = response.body.getReader();
+                const chunks = [];
+
+                for (;;) {
+                    const { done, value } = await reader.read();
+
+                    if (done) {
+                        break;
+                    }
+
+                    chunks.push(value);
+                    received += value.byteLength;
+                    progress.value = total ? received / total : 0;
+                }
+
+                files.push(new File(chunks, media.name, { type: media.mime_type || 'application/octet-stream' }));
+            }
+
+            if (!navigator.canShare({ files })) {
+                toast('Le téléphone refuse ce lot dans la feuille de partage : essaie avec moins de fichiers.', { error: true });
+
+                return;
+            }
+
+            await navigator.share({ files, title: `${files.length} fichiers` });
+            toast(`Choisis « Enregistrer ${files.length} images » : les originaux, sans compression.`);
+        } catch (error) {
+            if (error?.name !== 'AbortError') {
+                toast('L’enregistrement dans Photos a échoué : télécharge plutôt le ZIP.', { error: true });
+            }
+        } finally {
+            saving.value = false;
+            progress.value = 0;
+        }
+    }
+
+    return { saving, progress, save, saveMany, isApple: isApplePhotosDevice() };
 }

@@ -1,10 +1,11 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ArrowLeft, Download, LogOut, RefreshCw, Trash2, UserPlus } from '@lucide/vue';
+import { ArrowLeft, Download, FolderPlus, LogOut, RefreshCw, Trash2, UserPlus } from '@lucide/vue';
 import ConfirmDialog from '../../components/ConfirmDialog.vue';
 import Dropzone from '../../components/Dropzone.vue';
 import InviteDialog from '../../components/InviteDialog.vue';
+import MediaPickerDialog from '../../components/MediaPickerDialog.vue';
 import MediaDetailsDialog from '../../components/MediaDetailsDialog.vue';
 import MediaGrid from '../../components/MediaGrid.vue';
 import UploadPanel from '../../components/UploadPanel.vue';
@@ -41,6 +42,7 @@ onUnmounted(() => {
 });
 
 const inviting = ref(false);
+const picking = ref(false);
 const details = ref(null);
 const confirming = ref(null);
 const processing = ref(false);
@@ -101,6 +103,10 @@ function confirm() {
                 <UserPlus class="size-[18px]" />
                 Inviter des membres
             </button>
+            <button type="button" class="btn btn-secondary" @click="picking = true">
+                <FolderPlus class="size-4" />
+                Ajouter depuis ma galerie
+            </button>
             <a v-if="media.length" :href="group.download_url" class="btn btn-secondary no-underline hover:no-underline" download>
                 <Download class="size-4" />
                 Tout télécharger
@@ -142,14 +148,15 @@ function confirm() {
         <MediaGrid v-if="media.length" :media="media" action="download" @open="details = $event" />
         <div v-else class="card py-12 text-center">
             <p class="text-text-muted">
-                Rien pour l'instant. Glisse une photo ci-dessus, ou depuis
-                <Link :href="routes.dashboard">ta galerie</Link> : Partager → <strong class="text-text">Vers un groupe</strong>.
+                Rien pour l'instant. Glisse une photo ci-dessus, ou
+                <button type="button" class="text-accent-400 hover:underline" @click="picking = true">ajoute depuis ta galerie</button>.
             </p>
         </div>
     </section>
 
     <MediaDetailsDialog :media="currentDetails" @close="details = null" />
     <InviteDialog :group="inviting ? group : null" @close="inviting = false" />
+    <MediaPickerDialog v-model:open="picking" :group="group" />
     <ConfirmDialog
         :open="confirming !== null"
         :title="confirming ? confirmations[confirming].title : ''"
