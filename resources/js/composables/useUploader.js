@@ -182,11 +182,26 @@ export function useUploader() {
         }
     }
 
-    /** Ouvre le sélecteur de fichiers du système — le bouton « Déposer ». */
+    /**
+     * Ouvre le sélecteur de fichiers du système — le bouton « Déposer ».
+     *
+     * Sur téléphone et tablette, annoncer photos et vidéos fait proposer la
+     * photothèque et l'appareil (et non seulement « Fichiers »). HEIC et HEIF
+     * sont nommés explicitement : sans cela, Safari convertit les HEIC en JPEG
+     * au passage — l'inverse de la promesse du produit. Sur ordinateur, aucun
+     * filtre : un RAW au type inconnu doit rester sélectionnable.
+     */
     function pickFiles(tags = []) {
         const input = document.createElement('input');
         input.type = 'file';
         input.multiple = true;
+
+        if (window.matchMedia?.('(pointer: coarse)').matches) {
+            input.accept = [
+                'image/*', 'video/*', 'image/heic', 'image/heif', '.heic', '.heif',
+                '.dng', '.cr2', '.cr3', '.nef', '.arw', '.raf', '.orf', '.rw2', '.mov', '.mp4',
+            ].join(',');
+        }
         input.addEventListener('change', () => addFiles(input.files, tags), { once: true });
         input.click();
     }
