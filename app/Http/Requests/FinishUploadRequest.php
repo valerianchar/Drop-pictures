@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Group;
 use Illuminate\Foundation\Http\FormRequest;
 
 class FinishUploadRequest extends FormRequest
@@ -15,6 +16,8 @@ class FinishUploadRequest extends FormRequest
             'checksum' => ['required', 'string', 'regex:/^[0-9a-fA-F]{64}$/'],
             'tags' => ['array', 'max:10'],
             'tags.*' => ['string', 'max:40'],
+            // Déposé depuis la page d'un groupe : le fichier y arrive directement.
+            'group_id' => ['nullable', 'integer', 'exists:groups,id'],
         ];
     }
 
@@ -37,5 +40,10 @@ class FinishUploadRequest extends FormRequest
     public function tagNames(): array
     {
         return array_values(array_filter(array_map('strval', $this->input('tags', []))));
+    }
+
+    public function group(): ?Group
+    {
+        return $this->filled('group_id') ? Group::query()->find($this->integer('group_id')) : null;
     }
 }

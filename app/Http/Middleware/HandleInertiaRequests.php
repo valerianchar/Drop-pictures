@@ -41,6 +41,14 @@ class HandleInertiaRequests extends Middleware
                 'share_link' => fn (): ?array => $request->session()->get('share_link'),
             ],
             'registration_open' => config('drop.registration_open'),
+            // Sans clé, le navigateur ne se connecte à rien : l'app vit très bien sans temps réel.
+            'broadcast' => [
+                'key' => config('broadcasting.default') === 'pusher' ? config('broadcasting.client.key') : null,
+                'host' => config('broadcasting.client.host'),
+                'port' => config('broadcasting.client.port'),
+                'scheme' => config('broadcasting.client.scheme'),
+                'user_id' => $user?->id,
+            ],
             'upload' => [
                 'chunk_bytes' => (int) config('drop.chunk_bytes'),
                 // La plus grande des limites, pour les textes ; le serveur juge fichier par fichier.

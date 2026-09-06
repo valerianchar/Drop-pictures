@@ -68,7 +68,7 @@ class Media extends Model
     /** @return BelongsToMany<Group, $this> */
     public function groups(): BelongsToMany
     {
-        return $this->belongsToMany(Group::class, 'group_media')->withPivot('shared_by')->withTimestamps();
+        return $this->belongsToMany(Group::class, 'group_media')->withPivot('shared_by', 'uploaded_here')->withTimestamps();
     }
 
     public function isVideo(): bool

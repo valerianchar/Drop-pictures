@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Events\MediaProcessed;
 use App\Models\Media;
 use App\Support\MediaProbe;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -58,5 +59,7 @@ class ProcessMedia implements ShouldQueue
             'thumbnail_path' => $hasThumbnail ? $thumbnailPath : null,
             'processed_at' => now(),
         ])->save();
+
+        MediaProcessed::dispatch($media, $media->groups()->pluck('groups.id')->all());
     }
 }

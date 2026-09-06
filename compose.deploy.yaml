@@ -89,7 +89,8 @@ services:
     # — ou par le sous-domaine MAILPIT_DOMAIN via Traefik, à condition de
     # passer MAILPIT_TRAEFIK à true : sans domaine réel, Traefik demanderait
     # en boucle un certificat impossible à Let's Encrypt.
-    mailpit:
+    # Nommé « drop-mailpit » pour la même raison : pointage a son propre « mailpit ».
+    drop-mailpit:
         image: axllent/mailpit
         restart: unless-stopped
         environment:
@@ -109,6 +110,34 @@ services:
             - proxy
         volumes:
             - mailpit-data:/data
+
+    # Temps réel des groupes : Soketi parle le protocole Pusher sans rien envoyer
+    # chez pusher.com. Le navigateur le joint en wss sur le même domaine que
+    # l'application — le protocole vit sous /app/…, Traefik y aiguille — pas de
+    # nouveau sous-domaine à déclarer. L'application, elle, le joint en interne
+    # (PUSHER_HOST=drop-soketi).
+    # Nommé « drop-soketi » : sur le réseau proxy partagé avec pointage, un alias
+    # « soketi » désignerait indifféremment le sien et le nôtre.
+    drop-soketi:
+        image: 'quay.io/soketi/soketi:1.6-16-alpine'
+        restart: unless-stopped
+        environment:
+            SOKETI_DEFAULT_APP_ID: '${PUSHER_APP_ID}'
+            SOKETI_DEFAULT_APP_KEY: '${PUSHER_APP_KEY}'
+            SOKETI_DEFAULT_APP_SECRET: '${PUSHER_APP_SECRET}'
+            # Métriques Prometheus sur le port 9601 — jamais publié ni routé par
+            # Traefik : seul le Prometheus du monitoring vient les lire, par le
+            # réseau « proxy » qu'ils partagent déjà.
+            SOKETI_METRICS_ENABLED: '1'
+        labels:
+            traefik.enable: 'true'
+            traefik.http.routers.drop-soketi.rule: 'Host(`${APP_DOMAIN}`) && PathPrefix(`/app/`)'
+            traefik.http.routers.drop-soketi.entrypoints: 'websecure'
+            traefik.http.routers.drop-soketi.tls.certresolver: 'le'
+            traefik.http.services.drop-soketi.loadbalancer.server.port: '6001'
+        networks:
+            - default
+            - proxy
 
     mysql:
         image: mysql:8.4

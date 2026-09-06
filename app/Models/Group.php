@@ -44,7 +44,7 @@ class Group extends Model
     /** @return BelongsToMany<Media, $this> */
     public function media(): BelongsToMany
     {
-        return $this->belongsToMany(Media::class, 'group_media')->withPivot('shared_by')->withTimestamps();
+        return $this->belongsToMany(Media::class, 'group_media')->withPivot('shared_by', 'uploaded_here')->withTimestamps();
     }
 
     public function hasMember(User $user): bool

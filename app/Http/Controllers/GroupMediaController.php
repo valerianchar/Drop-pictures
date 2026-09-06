@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Actions\ShareMediaToGroup;
+use App\Events\MediaAdded;
+use App\Events\MediaRemoved;
 use App\Http\Requests\StoreGroupMediaRequest;
 use App\Models\Group;
 use App\Models\Media;
@@ -18,6 +20,10 @@ class GroupMediaController extends Controller
         $media = $request->media();
         $shared = $shareToGroup->handle($media, $group, $request->user());
 
+        if ($shared) {
+            MediaAdded::dispatch($media, $group, $request->user());
+        }
+
         return back()->with('success', $shared
             ? "Envoyé au groupe « {$group->name} » en qualité d’origine."
             : "« {$media->original_name} » était déjà dans « {$group->name} ».");
@@ -28,6 +34,7 @@ class GroupMediaController extends Controller
         Gate::authorize('update', $media);
 
         $group->media()->detach($media->id);
+        MediaRemoved::dispatch($media->id, $media->original_name, [$group->id], $media->user_id);
 
         return back()->with('success', "« {$media->original_name} » retiré de « {$group->name} ».");
     }

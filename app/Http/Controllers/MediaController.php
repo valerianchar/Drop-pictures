@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\DeleteMedia;
 use App\Actions\SyncMediaTags;
+use App\Events\MediaRemoved;
 use App\Http\Requests\UpdateMediaTagsRequest;
 use App\Models\Media;
 use Illuminate\Http\RedirectResponse;
@@ -75,7 +76,13 @@ class MediaController extends Controller
         Gate::authorize('delete', $media);
 
         $name = $media->original_name;
+        $id = $media->id;
+        $groupIds = $media->groups()->pluck('groups.id')->all();
         $deleteMedia->handle($media);
+
+        if ($groupIds !== []) {
+            MediaRemoved::dispatch($id, $name, $groupIds, $media->user_id);
+        }
 
         return redirect()->route('dashboard')->with('success', "« {$name} » supprimé.");
     }

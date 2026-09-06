@@ -18,7 +18,8 @@ import { routes } from '../routes';
  */
 const state = reactive({
     items: [],
-    tagsForNext: [],
+    // La page d'un groupe s'y déclare : ce qu'on dépose alors arrive directement dans le groupe.
+    targetGroupId: null,
 });
 
 const CONCURRENCY = 2;
@@ -52,7 +53,7 @@ function release() {
     }
 }
 
-async function uploadOne(item, file, tags) {
+async function uploadOne(item, file, tags, groupId) {
     const chunkBytes = window.__dropChunkBytes ?? 8 * 1024 * 1024;
 
     try {
@@ -90,7 +91,7 @@ async function uploadOne(item, file, tags) {
         const checksum = hasher.digest('hex');
         item.checksum = checksum;
 
-        const finished = await postJson(start.finish_url, { checksum, tags });
+        const finished = await postJson(start.finish_url, { checksum, tags, group_id: groupId ?? undefined });
 
         item.status = 'termine';
         item.progress = 1;
@@ -138,7 +139,7 @@ async function sendChunk(url, bytes, item) {
 }
 
 function refreshGallery(item) {
-    router.reload({ only: ['media', 'storage', 'tags'] });
+    router.reload({ only: ['media', 'storage', 'tags', 'group'] });
 
     // En production l'aperçu se calcule dans un worker, quelques secondes après
     // le dépôt : on repasse chercher la galerie tant que le fichier n'est pas traité.
@@ -148,7 +149,7 @@ function refreshGallery(item) {
 }
 
 export function useUploader() {
-    function addFiles(fileList, tags = []) {
+    function addFiles(fileList, tags = [], groupId = state.targetGroupId) {
         const files = Array.from(fileList ?? []).filter((file) => file.size > 0);
 
         for (const file of files) {
@@ -156,6 +157,7 @@ export function useUploader() {
                 id: nextId++,
                 name: file.name,
                 size: file.size,
+                groupId,
                 sent: 0,
                 progress: 0,
                 status: 'attente',
@@ -171,7 +173,7 @@ export function useUploader() {
             queue = queue.then(async () => {
                 await slot();
 
-                uploadOne(item, file, tags).finally(() => {
+                uploadOne(item, file, tags, groupId).finally(() => {
                     release();
 
                     if (item.status === 'termine') {
@@ -240,6 +242,11 @@ export function useUploader() {
 
     const active = computed(() => state.items.filter((item) => !['termine', 'erreur', 'annule'].includes(item.status)));
 
+    /** La page d'un groupe déclare sa cible en arrivant, et la retire en partant. */
+    function setTargetGroup(groupId) {
+        state.targetGroupId = groupId;
+    }
+
     return {
         items: readonly(state).items,
         active,
@@ -248,5 +255,6 @@ export function useUploader() {
         cancel,
         dismiss,
         clearFinished,
+        setTargetGroup,
     };
 }

@@ -46,6 +46,12 @@ Deux réglages méritent un regard :
   pointage) : `ssh -L 8026:127.0.0.1:8026 vps` puis http://localhost:8026. Pour que les invités
   reçoivent réellement leur e-mail, renseignez un SMTP externe.
 
+- **Le temps réel** (`PUSHER_APP_ID`, `PUSHER_APP_KEY`, `PUSHER_APP_SECRET`) : trois chaînes
+  aléatoires (`openssl rand -hex 16`). Le Soketi de la pile s'appelle `drop-soketi` — pointage a le
+  sien sur le même réseau `proxy`, les noms ne doivent pas se confondre. Ses métriques (port 9601)
+  se lisent en ajoutant une cible `drop-soketi:9601` au Prometheus du monitoring
+  (`/srv/monitoring/prometheus.yml`, voir [monitoring/README.md](monitoring/README.md)).
+
 ## 3. Les secrets GitHub
 
 Les mêmes que pointage, avec la même clé de déploiement : `VPS_HOST`, `VPS_USER`,

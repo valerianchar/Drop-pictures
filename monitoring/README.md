@@ -11,6 +11,16 @@ cAdvisor). Rien à ajouter côté collecte :
   `drop-picture-queue-1`, `drop-picture-scheduler-1`, `drop-picture-mysql-1`.
 - L'application elle-même n'expose pas de métriques — comme pointage, la santé se
   lit sur `/up`, sondée par la CI et par `redeploie.sh`.
+- **Soketi** (temps réel des groupes) expose ses métriques sur `drop-soketi:9601`, joignable
+  par le réseau `proxy`. À ajouter une fois dans `/srv/monitoring/prometheus.yml`, à côté du job
+  `soketi` de pointage, puis recharger Prometheus (`docker kill -s HUP monitoring-prometheus-1`) :
+
+  ```yaml
+  - job_name: drop-soketi
+    fallback_scrape_protocol: PrometheusText0.0.4
+    static_configs:
+        - targets: ['drop-soketi:9601']
+  ```
 
 ## Tableau de bord
 

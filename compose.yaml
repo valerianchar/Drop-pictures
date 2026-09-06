@@ -23,6 +23,18 @@ services:
             - sail
         depends_on:
             - mysql
+    # Temps réel des groupes : Soketi parle le protocole Pusher,
+    # en local comme en production — rien ne part jamais chez pusher.com.
+    soketi:
+        image: 'quay.io/soketi/soketi:1.6-16-alpine'
+        environment:
+            SOKETI_DEFAULT_APP_ID: '${PUSHER_APP_ID:-drop-picture}'
+            SOKETI_DEFAULT_APP_KEY: '${PUSHER_APP_KEY:-drop-picture-local}'
+            SOKETI_DEFAULT_APP_SECRET: '${PUSHER_APP_SECRET:-secret-local}'
+        ports:
+            - '${SOKETI_PORT:-6001}:6001'
+        networks:
+            - sail
     mysql:
         image: 'mysql:8.4'
         ports:

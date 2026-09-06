@@ -107,6 +107,12 @@ espace par compte, taille maximale d'une photo, d'une vidéo, d'un autre fichier
 la place réellement disponible sur le disque en regard. Les valeurs du `.env` ne servent que de
 défaut tant que rien n'a été réglé.
 
+**Le groupe se met à jour tout seul.** Chaque groupe a son canal privé (Soketi, protocole
+Pusher, comme pointage) : un fichier déposé ou partagé par un membre apparaît chez les autres sans
+recharger, avec une notification « Léo a ajouté … » ; l'aperçu prêt complète la carte de la même
+façon. Depuis la page d'un groupe, « Déposer » et la zone de dépôt envoient directement dans le
+groupe. Sans clé de diffusion, l'application vit très bien sans temps réel.
+
 **Photothèque sur téléphone.** Sur mobile, le bouton « Déposer » annonce photos et vidéos pour
 que le système propose la photothèque et l'appareil, et nomme HEIC/HEIF explicitement : sans
 cela, Safari convertirait les HEIC en JPEG au passage. Sur ordinateur, aucun filtre — un RAW au

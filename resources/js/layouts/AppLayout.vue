@@ -1,15 +1,19 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { ImageUp, Search } from '@lucide/vue';
 import AppLogo from '../components/AppLogo.vue';
 import FlashToast from '../components/FlashToast.vue';
 import UserMenu from '../components/UserMenu.vue';
 import { useUploader } from '../composables/useUploader';
+import { connectRealtime } from '../realtime';
 import { routes } from '../routes';
 
 const page = usePage();
 const { pickFiles } = useUploader();
+
+/* Les écrans authentifiés s'abonnent au canal privé de l'utilisateur. */
+onMounted(() => connectRealtime(page.props.broadcast));
 
 /*
  * La recherche vit dans l'en-tête et interroge toujours la galerie : depuis une

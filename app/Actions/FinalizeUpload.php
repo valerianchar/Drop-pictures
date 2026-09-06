@@ -3,7 +3,9 @@
 namespace App\Actions;
 
 use App\Enums\MediaKind;
+use App\Events\MediaAdded;
 use App\Jobs\ProcessMedia;
+use App\Models\Group;
 use App\Models\Media;
 use App\Models\Tag;
 use App\Models\Upload;
@@ -23,8 +25,9 @@ final class FinalizeUpload
 {
     /**
      * @param  list<string>  $tagNames
+     * @param  ?Group  $group  Le groupe où le fichier est déposé directement, s'il y en a un.
      */
-    public function handle(Upload $upload, string $clientChecksum, array $tagNames = []): Media
+    public function handle(Upload $upload, string $clientChecksum, array $tagNames = [], ?Group $group = null): Media
     {
         if (! $upload->isComplete()) {
             throw ValidationException::withMessages([
@@ -60,7 +63,7 @@ final class FinalizeUpload
             throw ValidationException::withMessages(['checksum' => 'Impossible de ranger le fichier.']);
         }
 
-        $media = DB::transaction(function () use ($upload, $extension, $finalPath, $checksum, $tagNames): Media {
+        $media = DB::transaction(function () use ($upload, $extension, $finalPath, $checksum, $tagNames, $group): Media {
             $media = Media::create([
                 'user_id' => $upload->user_id,
                 'uuid' => $upload->uuid,
@@ -74,10 +77,19 @@ final class FinalizeUpload
             ]);
 
             $this->attachTags($media, $tagNames);
+
+            if ($group !== null) {
+                $group->media()->attach($media->id, ['shared_by' => $upload->user_id, 'uploaded_here' => true]);
+            }
+
             $upload->delete();
 
             return $media;
         });
+
+        if ($group !== null) {
+            MediaAdded::dispatch($media, $group, $upload->user);
+        }
 
         ProcessMedia::dispatch($media);
 

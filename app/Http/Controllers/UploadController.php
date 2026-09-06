@@ -11,6 +11,7 @@ use App\Http\Resources\MediaResource;
 use App\Models\Upload;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -62,7 +63,13 @@ class UploadController extends Controller
     {
         $this->ensureOwner($request, $upload);
 
-        $media = $finalizeUpload->handle($upload, $request->string('checksum')->value(), $request->tagNames());
+        $group = $request->group();
+
+        if ($group !== null) {
+            Gate::authorize('share', $group);
+        }
+
+        $media = $finalizeUpload->handle($upload, $request->string('checksum')->value(), $request->tagNames(), $group);
         $media->load('tags')->loadCount('shareLinks');
 
         return response()->json([

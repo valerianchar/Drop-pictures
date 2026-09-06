@@ -5,6 +5,11 @@ import { HardDriveUpload } from '@lucide/vue';
 import { useUploader } from '../composables/useUploader';
 import { formatBytes } from '../format';
 
+const props = defineProps({
+    /** Sur la page d'un groupe : « Glisse tes photos et vidéos dans « Famille » ». */
+    groupName: { type: String, default: null },
+});
+
 const { addFiles, pickFiles } = useUploader();
 const page = usePage();
 const active = ref(false);
@@ -81,7 +86,9 @@ onUnmounted(() => {
     >
         <HardDriveUpload class="mx-auto mb-2 size-7 text-accent-400" />
         <span class="mb-1 block font-heading font-semibold">
-            {{ active ? 'Lâche, on s’en occupe' : 'Glisse tes photos et vidéos ici' }}
+            <template v-if="active">Lâche, on s’en occupe</template>
+            <template v-else-if="props.groupName">Glisse tes photos et vidéos dans « {{ props.groupName }} »</template>
+            <template v-else>Glisse tes photos et vidéos ici</template>
         </span>
         <span class="block text-[14px] text-text-muted">
             Aucune compression : le fichier source est conservé tel quel — JPG, PNG, RAW, MP4, MOV jusqu'à {{ maxLabel }}

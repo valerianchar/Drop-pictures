@@ -1,11 +1,15 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ArrowLeft, LogOut, RefreshCw, Trash2, UserPlus } from '@lucide/vue';
 import ConfirmDialog from '../../components/ConfirmDialog.vue';
+import Dropzone from '../../components/Dropzone.vue';
 import InviteDialog from '../../components/InviteDialog.vue';
 import MediaDetailsDialog from '../../components/MediaDetailsDialog.vue';
 import MediaGrid from '../../components/MediaGrid.vue';
+import UploadPanel from '../../components/UploadPanel.vue';
+import { useUploader } from '../../composables/useUploader';
+import { subscribeGroup, unsubscribeGroup } from '../../realtime';
 import { routes } from '../../routes';
 
 const props = defineProps({
@@ -17,6 +21,22 @@ const props = defineProps({
     leave_url: { type: String, required: true },
     delete_url: { type: String, required: true },
     regenerate_url: { type: String, required: true },
+});
+
+const { setTargetGroup } = useUploader();
+
+/*
+ * Sur cette page, « Déposer » et la zone de dépôt envoient directement dans le
+ * groupe ; et l'on écoute ce que les autres membres y déposent.
+ */
+onMounted(() => {
+    setTargetGroup(props.group.id);
+    subscribeGroup(props.group.id);
+});
+
+onUnmounted(() => {
+    setTargetGroup(null);
+    unsubscribeGroup(props.group.id);
 });
 
 const inviting = ref(false);
@@ -91,6 +111,9 @@ function confirm() {
         </div>
     </div>
 
+    <Dropzone class="mb-7" :group-name="group.name" />
+    <UploadPanel />
+
     <section class="mb-7">
         <h2 class="mb-3 text-[16px]">Membres</h2>
         <ul class="flex flex-wrap gap-2">
@@ -109,8 +132,8 @@ function confirm() {
         <MediaGrid v-if="media.length" :media="media" action="download" @open="details = $event" />
         <div v-else class="card py-12 text-center">
             <p class="text-text-muted">
-                Rien pour l'instant. Depuis
-                <Link :href="routes.dashboard">ta galerie</Link>, choisis un fichier → Partager → <strong class="text-text">Vers un groupe</strong>.
+                Rien pour l'instant. Glisse une photo ci-dessus, ou depuis
+                <Link :href="routes.dashboard">ta galerie</Link> : Partager → <strong class="text-text">Vers un groupe</strong>.
             </p>
         </div>
     </section>
