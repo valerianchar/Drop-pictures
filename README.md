@@ -108,5 +108,12 @@ membres le voient et téléchargent l'original. Supprimer le groupe ne supprime 
 session ; après inscription ou connexion, l'utilisateur est installé dans le groupe. Une
 invitation en attente garde l'inscription ouverte même quand `DROP_REGISTRATION_OPEN=false`.
 
+**« Enregistrer dans Photos » sur iPhone.** Un téléchargement classique finit dans l'app Fichiers.
+Sur iPhone et iPad, le bouton principal passe l'original à la feuille de partage d'iOS
+(`navigator.share` avec le fichier lu en flux) : « Enregistrer l'image / la vidéo » l'envoie dans
+Photos, octets inchangés. En repli, l'original s'affiche inline (`/fichiers/{id}/voir`,
+`/p/{token}/voir`) et un appui long propose « Enregistrer dans Photos ». Le téléchargement vers
+Fichiers reste disponible en second.
+
 **Session expirée.** `App\Exceptions\RetryExpiredSession` renvoie l'utilisateur sur sa page,
 rechargée avec un jeton frais.

@@ -1,9 +1,10 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
-import { Copy, Download, Play, Share2, Trash2, X } from '@lucide/vue';
+import { Copy, Play, Share2, Trash2, X } from '@lucide/vue';
 import AppDialog from './AppDialog.vue';
 import ConfirmDialog from './ConfirmDialog.vue';
+import DownloadActions from './DownloadActions.vue';
 import { useClipboard } from '../composables/useClipboard';
 import { useToast } from '../composables/useToast';
 import { routes } from '../routes';
@@ -153,10 +154,7 @@ function destroy() {
                 <Share2 class="size-4" />
                 Partager
             </button>
-            <a v-if="media" :href="media.download_url" class="btn btn-primary no-underline hover:no-underline" download>
-                <Download class="size-4" />
-                Télécharger l'original
-            </a>
+            <DownloadActions v-if="media" :media="media" />
         </template>
     </AppDialog>
 

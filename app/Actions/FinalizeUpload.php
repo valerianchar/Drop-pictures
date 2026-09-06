@@ -7,6 +7,7 @@ use App\Jobs\ProcessMedia;
 use App\Models\Media;
 use App\Models\Tag;
 use App\Models\Upload;
+use App\Support\MimeType;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -59,7 +60,7 @@ final class FinalizeUpload
                 'uuid' => $upload->uuid,
                 'original_name' => $upload->original_name,
                 'extension' => $extension,
-                'mime_type' => $upload->mime_type ?: 'application/octet-stream',
+                'mime_type' => MimeType::resolve($upload->mime_type, $extension),
                 'kind' => MediaKind::fromExtension($extension),
                 'size_bytes' => $upload->size_bytes,
                 'checksum_sha256' => $checksum,

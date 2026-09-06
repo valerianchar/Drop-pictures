@@ -1,8 +1,9 @@
 <script setup>
 import { computed } from 'vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
-import { Copy, Download, Play, ShieldCheck } from '@lucide/vue';
+import { Copy, Play, ShieldCheck } from '@lucide/vue';
 import AppLogo from '../../components/AppLogo.vue';
+import DownloadActions from '../../components/DownloadActions.vue';
 import FlashToast from '../../components/FlashToast.vue';
 import LoginBackground from '../../components/LoginBackground.vue';
 import { useClipboard } from '../../composables/useClipboard';
@@ -58,10 +59,7 @@ async function copyChecksum() {
                     <h1 class="mb-1 break-all font-mono text-[18px] tracking-normal">{{ media.name }}</h1>
                     <p class="mb-5 font-mono text-[12px] text-text-muted">{{ media.meta }}</p>
 
-                    <a :href="media.download_url" class="btn btn-primary btn-lg w-full no-underline hover:no-underline" download>
-                        <Download class="size-[18px]" />
-                        Télécharger l'original ({{ media.size_label }})
-                    </a>
+                    <DownloadActions :media="media" large block />
 
                     <div class="mt-5 flex items-start gap-2.5 rounded-md border border-neutral-800 bg-surface p-3.5 text-[13px]">
                         <ShieldCheck class="mt-px size-[18px] shrink-0 text-accent-400" />

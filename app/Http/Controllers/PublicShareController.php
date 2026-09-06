@@ -25,6 +25,7 @@ class PublicShareController extends Controller
                 ...MediaResource::make($media)->resolve(),
                 'thumbnail_url' => $media->hasThumbnail() ? route('share.thumbnail', $token) : null,
                 'download_url' => route('share.download', $token),
+                'view_url' => route('share.view', $token),
                 'can_edit' => false,
             ],
             'owner' => $link->user->first_name,
@@ -43,6 +44,17 @@ class PublicShareController extends Controller
                 'X-Checksum-SHA256' => $link->media->checksum_sha256,
                 'Cache-Control' => 'private, no-transform',
             ]);
+    }
+
+    /**
+     * L'original affiché dans le navigateur (« Enregistrer dans Photos » sur iPhone).
+     */
+    public function view(string $token): BinaryFileResponse
+    {
+        $link = $this->activeLink($token);
+        $link->increment('downloads_count');
+
+        return MediaController::inline($link->media);
     }
 
     public function thumbnail(string $token): BinaryFileResponse

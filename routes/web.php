@@ -37,6 +37,7 @@ Route::middleware('guest')->group(function () {
  */
 Route::get('/p/{token}', [PublicShareController::class, 'show'])->name('share.show');
 Route::get('/p/{token}/telecharger', [PublicShareController::class, 'download'])->name('share.download');
+Route::get('/p/{token}/voir', [PublicShareController::class, 'view'])->name('share.view');
 Route::get('/p/{token}/apercu', [PublicShareController::class, 'thumbnail'])->name('share.thumbnail');
 
 // Les liens d'invitation passent par l'inscription si besoin : pas de middleware auth.
@@ -56,6 +57,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/depots/{upload:uuid}', [UploadController::class, 'destroy'])->name('uploads.destroy');
 
     Route::get('/fichiers/{media}/telecharger', [MediaController::class, 'download'])->name('media.download');
+    Route::get('/fichiers/{media}/voir', [MediaController::class, 'view'])->name('media.view');
     Route::get('/fichiers/{media}/apercu', [MediaController::class, 'thumbnail'])->name('media.thumbnail');
     Route::put('/fichiers/{media}/tags', [MediaController::class, 'updateTags'])->name('media.tags');
     Route::delete('/fichiers/{media}', [MediaController::class, 'destroy'])->name('media.destroy');
