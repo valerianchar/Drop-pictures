@@ -101,7 +101,7 @@ function destroy() {
                 >
                     <Play class="size-2.5" />{{ media.duration_label ?? 'Vidéo' }}
                 </span>
-                <span class="badge badge-accent absolute top-2.5 right-2.5">Original · {{ media.quality }}</span>
+                <span class="badge absolute top-2.5 right-2.5 bg-[rgba(4,7,4,0.8)] text-accent-400 backdrop-blur-[2px]">Original · {{ media.quality }}</span>
             </div>
 
             <dl class="mb-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[13px]">

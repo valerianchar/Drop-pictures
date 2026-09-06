@@ -50,7 +50,7 @@ async function copyChecksum() {
                     <span v-if="media.is_video" class="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-pill bg-[rgba(4,7,4,0.75)] px-2.5 py-[3px] font-mono text-[10px]">
                         <Play class="size-2.5" />{{ media.duration_label ?? 'Vidéo' }}
                     </span>
-                    <span class="badge badge-accent absolute top-3 right-3">Original · {{ media.quality }}</span>
+                    <span class="badge absolute top-3 right-3 bg-[rgba(4,7,4,0.8)] text-accent-400 backdrop-blur-[2px]">Original · {{ media.quality }}</span>
                 </div>
 
                 <div class="p-6">

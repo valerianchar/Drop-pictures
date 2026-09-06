@@ -34,7 +34,8 @@ const emit = defineEmits(['open', 'share']);
                 {{ props.media.duration_label ?? 'Vidéo' }}
             </span>
 
-            <span class="badge badge-accent absolute top-2.5 right-2.5">Original · {{ props.media.quality }}</span>
+            <!-- Posé sur la photo elle-même : fond sombre opaque, sinon il se noie dans une image claire. -->
+            <span class="badge absolute top-2.5 right-2.5 bg-[rgba(4,7,4,0.8)] text-accent-400 backdrop-blur-[2px]">Original · {{ props.media.quality }}</span>
         </div>
 
         <div class="flex items-center justify-between gap-2 px-3.5 py-2.5">
