@@ -86,14 +86,16 @@ services:
     # de passe y arrivent tant qu'aucun SMTP externe n'est configuré. Lecture
     # par tunnel SSH — port 8026, le 8025 étant celui de pointage :
     #   ssh -L 8026:127.0.0.1:8026 VOTRE_HOTE  puis  http://localhost:8026
-    # — ou par le sous-domaine MAILPIT_DOMAIN via Traefik.
+    # — ou par le sous-domaine MAILPIT_DOMAIN via Traefik, à condition de
+    # passer MAILPIT_TRAEFIK à true : sans domaine réel, Traefik demanderait
+    # en boucle un certificat impossible à Let's Encrypt.
     mailpit:
         image: axllent/mailpit
         restart: unless-stopped
         environment:
             MP_DATABASE: /data/mailpit.db
         labels:
-            traefik.enable: 'true'
+            traefik.enable: '${MAILPIT_TRAEFIK:-false}'
             traefik.http.routers.drop-mailpit.rule: 'Host(`${MAILPIT_DOMAIN:-mailpit.drop.localhost}`)'
             traefik.http.routers.drop-mailpit.entrypoints: 'websecure'
             traefik.http.routers.drop-mailpit.tls.certresolver: 'le'
