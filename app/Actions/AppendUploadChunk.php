@@ -23,8 +23,11 @@ final class AppendUploadChunk
     /**
      * @param  resource  $stream  Le corps de la requête, lu en flux : un morceau
      *                            ne passe jamais entièrement en mémoire.
+     * @param  ?int  $announcedBytes  La longueur annoncée par le navigateur : un
+     *                                morceau coupé en route ne doit pas passer
+     *                                pour complet.
      */
-    public function handle(Upload $upload, int $index, $stream): Upload
+    public function handle(Upload $upload, int $index, $stream, ?int $announcedBytes = null): Upload
     {
         if ($index < $upload->next_chunk_index) {
             return $upload;
@@ -71,6 +74,14 @@ final class AppendUploadChunk
             throw ValidationException::withMessages(['chunk' => 'Morceau vide.']);
         }
 
+        if ($announcedBytes !== null && $written !== $announcedBytes) {
+            // Le réseau a coupé le morceau : on rend au fichier sa taille d'avant,
+            // l'état du hachage n'est pas enregistré, et le navigateur renvoie ce morceau.
+            self::truncate($upload);
+
+            abort(409, "Morceau {$index} incomplet : {$written} octets reçus sur {$announcedBytes} annoncés.");
+        }
+
         $upload->forceFill([
             'received_bytes' => $upload->received_bytes + $written,
             'next_chunk_index' => $index + 1,
@@ -97,6 +108,16 @@ final class AppendUploadChunk
         }
 
         return $context;
+    }
+
+    private static function truncate(Upload $upload): void
+    {
+        $handle = fopen($upload->absolutePartPath(), 'r+b');
+
+        if ($handle !== false) {
+            ftruncate($handle, $upload->received_bytes);
+            fclose($handle);
+        }
     }
 
     private static function storeContext(HashContext $context): string

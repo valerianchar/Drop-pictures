@@ -12,7 +12,10 @@ use App\Models\Upload;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Le dépôt par morceaux, en trois temps : ouvrir, ajouter chaque morceau,
@@ -23,12 +26,27 @@ class UploadController extends Controller
 {
     public function store(StartUploadRequest $request, StartUpload $startUpload): JsonResponse
     {
-        $upload = $startUpload->handle(
-            $request->user(),
-            $request->string('name')->value(),
-            $request->integer('size'),
-            $request->input('type'),
-        );
+        try {
+            $upload = $startUpload->handle(
+                $request->user(),
+                $request->string('name')->value(),
+                $request->integer('size'),
+                $request->input('type'),
+            );
+        } catch (ValidationException $exception) {
+            // Un refus ne laisse aucune ligne : on le note, pour qu'un dépôt qui
+            // « ne marche pas » depuis un téléphone ait une trace côté serveur.
+            Log::info('Dépôt refusé', [
+                'user_id' => $request->user()->id,
+                'name' => $request->string('name')->value(),
+                'size' => $request->integer('size'),
+                'type' => $request->input('type'),
+                'errors' => $exception->errors(),
+                'agent' => Str::limit((string) $request->userAgent(), 200),
+            ]);
+
+            throw $exception;
+        }
 
         return response()->json([
             'id' => $upload->uuid,
@@ -44,9 +62,10 @@ class UploadController extends Controller
         $this->ensureOwner($request, $upload);
 
         $stream = $request->getContent(asResource: true);
+        $announced = $request->header('Content-Length');
 
         try {
-            $upload = $appendChunk->handle($upload, $index, $stream);
+            $upload = $appendChunk->handle($upload, $index, $stream, is_numeric($announced) ? (int) $announced : null);
         } finally {
             if (is_resource($stream)) {
                 fclose($stream);

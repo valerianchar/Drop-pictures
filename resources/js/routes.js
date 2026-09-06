@@ -10,6 +10,7 @@ export const routes = {
     forgotPassword: '/mot-de-passe-oublie',
     resetPassword: '/nouveau-mot-de-passe',
     uploads: '/depots',
+    clientLog: '/journal-client',
     groups: '/groupes',
     settings: '/reglages',
     mediaTags: (mediaId) => `/fichiers/${mediaId}/tags`,

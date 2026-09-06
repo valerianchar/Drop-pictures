@@ -35,6 +35,6 @@ return Application::configure(basePath: dirname(__DIR__))
         }
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        $exceptions->shouldRenderJsonWhen(fn (Request $request) => $request->is('depots*') || $request->expectsJson());
+        $exceptions->shouldRenderJsonWhen(fn (Request $request) => $request->is('depots*') || $request->is('journal-client') || $request->expectsJson());
         $exceptions->respond(new RetryExpiredSession);
     })->create();

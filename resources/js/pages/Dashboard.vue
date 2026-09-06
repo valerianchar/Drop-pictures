@@ -14,7 +14,6 @@ import SelectionBar from '../components/SelectionBar.vue';
 import ShareDialog from '../components/ShareDialog.vue';
 import ShareLinkRow from '../components/ShareLinkRow.vue';
 import TagFilter from '../components/TagFilter.vue';
-import UploadPanel from '../components/UploadPanel.vue';
 import { routes } from '../routes';
 
 const props = defineProps({
@@ -115,7 +114,6 @@ const storageLine = computed(() => {
     </div>
 
     <Dropzone class="mb-7" />
-    <UploadPanel />
 
     <TabsRoot v-model="tab">
         <TabsList class="mb-4 flex gap-1 border-b border-neutral-800" aria-label="Sections">

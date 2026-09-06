@@ -2,6 +2,7 @@ import { computed, reactive, readonly } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { createSHA256 } from 'hash-wasm';
 import { HttpError, postJson, request } from '../http';
+import { isApplePhotosDevice } from './useSaveToPhotos';
 import { routes } from '../routes';
 
 /*
@@ -16,13 +17,78 @@ import { routes } from '../routes';
  * L'état vit au niveau du module : l'en-tête déclenche le dépôt, la page
  * l'affiche, et une navigation Inertia ne perd pas la progression.
  */
+let nextId = 1;
+
 const state = reactive({
     items: [],
     // La page d'un groupe s'y déclare : ce qu'on dépose alors arrive directement dans le groupe.
     targetGroupId: null,
 });
 
+/*
+ * Journal côté client : les échecs qui n'atteignent jamais le serveur (sélecteur
+ * annulé par iOS, fichier vide, lecture refusée) y laissent une trace lisible
+ * dans les journaux de l'application. Silencieux si le réseau manque.
+ */
+function report(event, data = {}) {
+    postJson(routes.clientLog, {
+        event,
+        data: {
+            ...data,
+            visibility: document.visibilityState,
+            standalone: window.matchMedia?.('(display-mode: standalone)').matches ?? false,
+        },
+    }).catch(() => {});
+}
+
+/** Une ligne d'erreur dans le panneau, sans fichier : la sélection elle-même a échoué. */
+function pushNotice(message) {
+    state.items.unshift(reactive({
+        id: nextId++,
+        name: 'Sélection',
+        size: 0,
+        groupId: null,
+        sent: 0,
+        progress: 0,
+        status: 'erreur',
+        error: message,
+        checksum: null,
+        media: null,
+        cancelled: false,
+        cancelUrl: null,
+    }));
+}
+
+const PICKING_KEY = 'drop.picking';
+let pickerElement = null;
+
+function picker() {
+    if (pickerElement === null || !document.body.contains(pickerElement)) {
+        pickerElement = document.createElement('input');
+        pickerElement.type = 'file';
+        pickerElement.multiple = true;
+        pickerElement.tabIndex = -1;
+        pickerElement.setAttribute('aria-hidden', 'true');
+        pickerElement.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;';
+        document.body.appendChild(pickerElement);
+    }
+
+    return pickerElement;
+}
+
+// L'app a été rechargée pendant que le téléphone préparait le fichier (mémoire, PWA remise à zéro).
+if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(PICKING_KEY)) {
+    sessionStorage.removeItem(PICKING_KEY);
+    queueMicrotask(() => {
+        pushNotice('L’application a été rechargée pendant la préparation du fichier par le téléphone : réessaie, avec un seul fichier à la fois.');
+        report('picker.reloaded');
+    });
+}
+
 const CONCURRENCY = 2;
+
+// Safari iOS supporte mal les gros corps de requête : morceaux plus petits sur iPhone et iPad.
+const IOS_CHUNK_BYTES = 4 * 1024 * 1024;
 
 // Un fichier de plusieurs dizaines de Go traverse des milliers de morceaux : une
 // coupure passagère ne doit pas tout perdre. Six essais, jusqu'à 30 s d'attente.
@@ -31,7 +97,6 @@ const CHUNK_RETRIES = 6;
 let queue = Promise.resolve();
 let running = 0;
 const waiting = [];
-let nextId = 1;
 
 function slot() {
     if (running < CONCURRENCY) {
@@ -59,8 +124,8 @@ async function uploadOne(item, file, tags, groupId) {
     try {
         item.status = 'preparation';
 
-        const start = await postJson(routes.uploads, { name: file.name, size: file.size, type: file.type || null });
-        const size = start.chunk_bytes || chunkBytes;
+        const start = await openUpload(file);
+        const size = Math.min(start.chunk_bytes || chunkBytes, isApplePhotosDevice() ? IOS_CHUNK_BYTES : Infinity);
         item.cancelUrl = start.cancel_url;
 
         const hasher = await createSHA256();
@@ -79,7 +144,9 @@ async function uploadOne(item, file, tags, groupId) {
             const bytes = new Uint8Array(await slice.arrayBuffer());
 
             hasher.update(bytes);
-            await sendChunk(start.chunk_url.replace('CHUNK', String(index)), bytes, item);
+            // Le corps envoyé est le Blob lui-même — Safari le gère mieux qu'un tableau d'octets —,
+            // ce sont exactement les octets qui viennent d'être hachés.
+            await sendChunk(start.chunk_url.replace('CHUNK', String(index)), slice, item);
 
             offset += bytes.byteLength;
             index += 1;
@@ -110,7 +177,49 @@ async function uploadOne(item, file, tags, groupId) {
         item.status = 'erreur';
         item.error = describeError(error);
         console.error('[drop-picture] dépôt interrompu', file.name, error);
+        report('upload.failed', {
+            name: file.name, size: file.size, type: file.type, sent: item.sent,
+            error: `${error?.name ?? 'Error'}: ${error?.message ?? ''}`.slice(0, 300), status: error?.status ?? null,
+        });
     }
+}
+
+/**
+ * Ouvre le dépôt. Au retour du sélecteur, Safari iOS peut refuser la première
+ * requête (« Load failed ») : on attend que la page soit visible et on réessaie.
+ */
+async function openUpload(file) {
+    for (let attempt = 1; ; attempt++) {
+        try {
+            return await postJson(routes.uploads, { name: file.name, size: file.size, type: file.type || null });
+        } catch (error) {
+            const transient = !(error instanceof HttpError) && attempt < 4;
+
+            if (!transient) {
+                throw error;
+            }
+
+            await visible();
+            await new Promise((resolve) => setTimeout(resolve, 600 * attempt));
+        }
+    }
+}
+
+function visible() {
+    if (document.visibilityState === 'visible') {
+        return Promise.resolve();
+    }
+
+    return new Promise((resolve) => {
+        const onChange = () => {
+            if (document.visibilityState === 'visible') {
+                document.removeEventListener('visibilitychange', onChange);
+                resolve();
+            }
+        };
+
+        document.addEventListener('visibilitychange', onChange);
+    });
 }
 
 /**
@@ -134,25 +243,36 @@ function describeError(error) {
     return `Le dépôt a échoué : ${error?.name ?? 'erreur'}${error?.message ? ' — ' + error.message : ''}.`;
 }
 
-async function sendChunk(url, bytes, item) {
+// Un morceau qui n'avance plus depuis deux minutes est abandonné puis renvoyé.
+const CHUNK_TIMEOUT_MS = 120000;
+
+async function sendChunk(url, body, item) {
     for (let attempt = 1; ; attempt++) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), CHUNK_TIMEOUT_MS);
+
         try {
             await request(url, {
                 method: 'PUT',
-                body: bytes,
+                body,
                 headers: { 'Content-Type': 'application/octet-stream' },
+                signal: controller.signal,
             });
 
             return;
         } catch (error) {
-            // Une coupure réseau se réessaie ; un refus du serveur (422, 419…) non.
-            const retryable = !(error instanceof HttpError) || error.status >= 500;
+            // Une coupure réseau, un délai dépassé ou un morceau tronqué (409) se réessaient ;
+            // un refus du serveur (422, 419…) non.
+            const retryable = !(error instanceof HttpError) || error.status >= 500 || [408, 409, 425].includes(error.status);
 
             if (!retryable || attempt >= CHUNK_RETRIES || item.cancelled) {
                 throw error;
             }
 
+            await visible();
             await new Promise((resolve) => setTimeout(resolve, Math.min(30000, 1000 * 2 ** (attempt - 1))));
+        } finally {
+            clearTimeout(timer);
         }
     }
 }
@@ -194,6 +314,7 @@ export function useUploader() {
             if (file.size === 0) {
                 item.status = 'erreur';
                 item.error = 'Fichier vide ou inaccessible : le téléphone n’a pas transmis son contenu. Réessaie depuis l’app Fichiers.';
+                report('file.empty', { name: file.name, type: file.type, lastModified: file.lastModified });
                 continue;
             }
 
@@ -214,6 +335,12 @@ export function useUploader() {
     /**
      * Ouvre le sélecteur de fichiers du système — le bouton « Déposer ».
      *
+     * Un seul <input>, attaché au document : détaché, WebKit peut le ramasser
+     * pendant la longue préparation d'une vidéo et aucun événement ne revient.
+     * On écoute aussi « cancel » : c'est ce que Safari iOS envoie quand la
+     * photothèque n'a pas réussi à préparer une vidéo (transcodage, original
+     * dans iCloud, stockage saturé) — sans lui, rien ne se passe, sans un mot.
+     *
      * Sur téléphone et tablette, annoncer photos et vidéos fait proposer la
      * photothèque et l'appareil (et non seulement « Fichiers »). HEIC et HEIF
      * sont nommés explicitement : sans cela, Safari convertit les HEIC en JPEG
@@ -221,17 +348,45 @@ export function useUploader() {
      * filtre : un RAW au type inconnu doit rester sélectionnable.
      */
     function pickFiles(tags = []) {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.multiple = true;
+        const input = picker();
+        input.value = '';
 
         if (window.matchMedia?.('(pointer: coarse)').matches) {
             input.accept = [
                 'image/*', 'video/*', 'image/heic', 'image/heif', '.heic', '.heif',
                 '.dng', '.cr2', '.cr3', '.nef', '.arw', '.raf', '.orf', '.rw2', '.mov', '.mp4',
             ].join(',');
+        } else {
+            input.removeAttribute('accept');
         }
-        input.addEventListener('change', () => addFiles(input.files, tags), { once: true });
+
+        const finish = (files, cancelled) => {
+            input.removeEventListener('change', onChange);
+            input.removeEventListener('cancel', onCancel);
+            sessionStorage.removeItem(PICKING_KEY);
+
+            if (cancelled) {
+                pushNotice('Le téléphone n’a pas pu préparer le fichier — c’est fréquent avec une vidéo : original encore dans iCloud, espace insuffisant, ou vidéo importée d’une autre app. Ouvre-la une fois dans Photos, ou passe par l’app Fichiers.');
+                report('picker.cancelled');
+
+                return;
+            }
+
+            if (!files?.length) {
+                pushNotice('Aucun fichier transmis par le téléphone. Réessaie, ou passe par l’app Fichiers.');
+                report('picker.empty');
+
+                return;
+            }
+
+            addFiles(files, tags);
+        };
+        const onChange = () => finish(input.files, false);
+        const onCancel = () => finish(null, true);
+
+        input.addEventListener('change', onChange);
+        input.addEventListener('cancel', onCancel);
+        sessionStorage.setItem(PICKING_KEY, String(Date.now()));
         input.click();
     }
 

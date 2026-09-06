@@ -14,6 +14,13 @@
 {$SERVER_NAME} {
 	root * /app/public
 
+	# Journal d'accès sur la sortie standard (docker logs) : pouvoir dire si une
+	# requête est arrivée ou non vaut mieux que le supposer.
+	log {
+		output stdout
+		format json
+	}
+
 	# Compression de transport des seules réponses textuelles (HTML, JSON, CSS,
 	# JS) — c'est le comportement par défaut de « encode », qui ne touche ni aux
 	# images, ni aux vidéos, ni aux flux binaires : un original part tel quel,

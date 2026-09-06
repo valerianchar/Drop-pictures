@@ -8,7 +8,6 @@ import InviteDialog from '../../components/InviteDialog.vue';
 import MediaPickerDialog from '../../components/MediaPickerDialog.vue';
 import MediaDetailsDialog from '../../components/MediaDetailsDialog.vue';
 import MediaGrid from '../../components/MediaGrid.vue';
-import UploadPanel from '../../components/UploadPanel.vue';
 import { useUploader } from '../../composables/useUploader';
 import { formatBytes } from '../../format';
 import { subscribeGroup, unsubscribeGroup } from '../../realtime';
@@ -128,7 +127,6 @@ function confirm() {
     </div>
 
     <Dropzone class="mb-7" :group-name="group.name" />
-    <UploadPanel />
 
     <section class="mb-7">
         <h2 class="mb-3 text-[16px]">Membres</h2>

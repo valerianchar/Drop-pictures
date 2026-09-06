@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\ClientLogController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\GroupInvitationController;
@@ -55,6 +56,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/reglages', [SettingsController::class, 'edit'])->name('settings.edit');
         Route::put('/reglages', [SettingsController::class, 'update'])->name('settings.update');
     });
+
+    // Ce que le navigateur n'a pas pu faire arriver jusqu'ici — JSON, sobre.
+    Route::post('/journal-client', [ClientLogController::class, 'store'])->middleware('throttle:30,1')->name('client-log.store');
 
     // Dépôt par morceaux — JSON.
     Route::post('/depots', [UploadController::class, 'store'])->name('uploads.store');

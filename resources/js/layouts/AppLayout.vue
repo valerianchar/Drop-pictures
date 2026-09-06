@@ -4,6 +4,7 @@ import { Link, router, usePage } from '@inertiajs/vue3';
 import { ImageUp, Search } from '@lucide/vue';
 import AppLogo from '../components/AppLogo.vue';
 import FlashToast from '../components/FlashToast.vue';
+import UploadPanel from '../components/UploadPanel.vue';
 import UserMenu from '../components/UserMenu.vue';
 import { useUploader } from '../composables/useUploader';
 import { connectRealtime } from '../realtime';
@@ -81,6 +82,8 @@ watch(chunkBytes, (value) => (window.__dropChunkBytes = value), { immediate: tru
         </header>
 
         <main class="mx-auto w-full max-w-[1160px] flex-1 px-4 pt-6 pb-[calc(env(safe-area-inset-bottom)+6rem)] lg:px-5">
+            <!-- Le bouton « Déposer » est partout : le retour des dépôts aussi. -->
+            <UploadPanel />
             <slot />
         </main>
     </div>

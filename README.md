@@ -138,6 +138,17 @@ que le système propose la photothèque et l'appareil, et nomme HEIC/HEIF explic
 cela, Safari convertirait les HEIC en JPEG au passage. Sur ordinateur, aucun filtre — un RAW au
 type inconnu reste sélectionnable.
 
+**Les vidéos et l'iPhone — ce qu'iOS impose.** Une vidéo choisie dans la photothèque via Safari
+arrive **toujours ré-encodée** par iOS (H.264, taille et métadonnées réduites) : c'est une décision
+de WebKit/PhotoKit qu'aucun site ne peut contourner. Pour déposer l'original d'une vidéo depuis un
+iPhone, il faut passer par l'app **Fichiers** (Partager → Enregistrer dans Fichiers, puis Déposer →
+Parcourir) ou par un ordinateur. Quand iOS n'arrive pas à préparer une vidéo (original dans iCloud
+non téléchargé, espace insuffisant, vidéo importée d'une autre app), Safari annule le sélecteur au
+lieu de rendre le fichier : l'application le dit désormais, avec la marche à suivre, et note
+l'incident dans ses journaux (`POST /journal-client`) pour qu'un dépôt qui « ne marche pas » laisse
+une trace côté serveur. Sur iOS les morceaux font 4 Mo et partent en Blob, forme que Safari gère le
+mieux.
+
 **Partager par lien ne produit aucune version.** Un lien est un jeton de 16 caractères qui
 donne accès au fichier d'origine — sans limite, ou pour 7 jours. Expiré, il répond 404 comme
 un lien inexistant.
