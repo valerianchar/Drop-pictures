@@ -58,6 +58,23 @@ class ZipDownloadTest extends TestCase
         $this->assertSame('bbbb', $entries['photo (2).jpg']['bytes']);
     }
 
+    public function test_a_member_downloads_a_selection_of_the_groups_files(): void
+    {
+        $group = Group::factory()->create();
+        $member = User::factory()->create();
+        $group->addMember($member);
+        $first = $this->fileFor($group->owner, 'a.jpg', 'aaaa');
+        $second = $this->fileFor($group->owner, 'b.jpg', 'bbbb');
+        $group->media()->attach([$first->id, $second->id], ['shared_by' => $group->owner_id]);
+
+        $this->actingAs($member)->get("/groupes/{$group->id}")
+            ->assertInertia(fn ($page) => $page->where('bulk_download_url', route('media.download-many')));
+
+        $entries = $this->entriesOf($this->actingAs($member)->get("/fichiers/telecharger?ids[]={$first->id}&ids[]={$second->id}")->assertOk());
+        $this->assertSame(['a.jpg', 'b.jpg'], array_keys($entries));
+        $this->assertSame('bbbb', $entries['b.jpg']['bytes']);
+    }
+
     public function test_strangers_get_nothing(): void
     {
         $group = Group::factory()->create();

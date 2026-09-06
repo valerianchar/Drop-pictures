@@ -1,13 +1,14 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ArrowLeft, Download, FolderPlus, LogOut, RefreshCw, Trash2, UserPlus } from '@lucide/vue';
+import { ArrowLeft, CheckSquare, Download, FolderPlus, LogOut, RefreshCw, Trash2, UserPlus } from '@lucide/vue';
 import ConfirmDialog from '../../components/ConfirmDialog.vue';
 import Dropzone from '../../components/Dropzone.vue';
 import InviteDialog from '../../components/InviteDialog.vue';
 import MediaPickerDialog from '../../components/MediaPickerDialog.vue';
 import MediaDetailsDialog from '../../components/MediaDetailsDialog.vue';
 import MediaGrid from '../../components/MediaGrid.vue';
+import SelectionBar from '../../components/SelectionBar.vue';
 import { useUploader } from '../../composables/useUploader';
 import { formatBytes } from '../../format';
 import { subscribeGroup, unsubscribeGroup } from '../../realtime';
@@ -22,6 +23,7 @@ const props = defineProps({
     leave_url: { type: String, required: true },
     delete_url: { type: String, required: true },
     regenerate_url: { type: String, required: true },
+    bulk_download_url: { type: String, required: true },
 });
 
 const { setTargetGroup } = useUploader();
@@ -48,6 +50,27 @@ const processing = ref(false);
 
 const currentDetails = computed(() => (details.value ? props.media.find((item) => item.id === details.value.id) ?? null : null));
 const totalLabel = computed(() => formatBytes(props.media.reduce((sum, item) => sum + item.size_bytes, 0)));
+
+/* Mode sélection : plusieurs fichiers du groupe d'un coup — ZIP sans compression, ou Photos sur iPhone. */
+const selecting = ref(false);
+const selectedIds = ref([]);
+const selected = computed(() => props.media.filter((item) => selectedIds.value.includes(item.id)));
+
+function toggle(media) {
+    selectedIds.value = selectedIds.value.includes(media.id)
+        ? selectedIds.value.filter((id) => id !== media.id)
+        : [...selectedIds.value, media.id];
+}
+
+function closeSelection() {
+    selecting.value = false;
+    selectedIds.value = [];
+}
+
+// Un fichier retiré du groupe (temps réel) quitte aussi la sélection.
+watch(() => props.media, (media) => {
+    selectedIds.value = selectedIds.value.filter((id) => media.some((item) => item.id === id));
+});
 
 const confirmations = {
     leave: {
@@ -142,8 +165,28 @@ function confirm() {
     </section>
 
     <section>
-        <h2 class="mb-3 text-[16px]">Fichiers partagés</h2>
-        <MediaGrid v-if="media.length" :media="media" action="download" @open="details = $event" />
+        <div class="mb-3 flex items-center justify-between gap-2">
+            <h2 class="text-[16px]">Fichiers partagés</h2>
+            <button
+                v-if="media.length"
+                type="button"
+                class="btn btn-secondary btn-sm"
+                :class="selecting && 'border-accent-600 text-accent-400'"
+                @click="selecting ? closeSelection() : (selecting = true)"
+            >
+                <CheckSquare class="size-4" />
+                {{ selecting ? 'Terminer' : 'Sélectionner' }}
+            </button>
+        </div>
+        <MediaGrid
+            v-if="media.length"
+            :media="media"
+            action="download"
+            :selectable="selecting"
+            :selected-ids="selectedIds"
+            @open="details = $event"
+            @toggle="toggle"
+        />
         <div v-else class="card py-12 text-center">
             <p class="text-text-muted">
                 Rien pour l'instant. Glisse une photo ci-dessus, ou
@@ -151,6 +194,17 @@ function confirm() {
             </p>
         </div>
     </section>
+
+    <SelectionBar
+        v-if="selecting"
+        :selected="selected"
+        :total="media.length"
+        :download-url="bulk_download_url"
+        :can-share-to-group="false"
+        @all="selectedIds = media.map((item) => item.id)"
+        @clear="selectedIds = []"
+        @close="closeSelection"
+    />
 
     <MediaDetailsDialog :media="currentDetails" @close="details = null" />
     <InviteDialog :group="inviting ? group : null" @close="inviting = false" />

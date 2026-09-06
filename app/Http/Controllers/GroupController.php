@@ -53,6 +53,7 @@ class GroupController extends Controller
             'leave_url' => route('groups.leave', $group),
             'delete_url' => route('groups.destroy', $group),
             'regenerate_url' => route('groups.invite-link.regenerate', $group),
+            'bulk_download_url' => route('media.download-many'),
         ]);
     }
 
