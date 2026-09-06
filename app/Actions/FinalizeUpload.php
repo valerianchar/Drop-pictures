@@ -1,0 +1,100 @@
+<?php
+
+namespace App\Actions;
+
+use App\Enums\MediaKind;
+use App\Jobs\ProcessMedia;
+use App\Models\Media;
+use App\Models\Tag;
+use App\Models\Upload;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
+
+/**
+ * Clôt un dépôt : le fichier partiel doit avoir exactement la taille annoncée et
+ * l'empreinte SHA-256 calculée ici doit être celle que le navigateur a calculée
+ * sur le fichier d'origine. Alors seulement il devient un média — par un simple
+ * renommage, sans copie ni réécriture : ce sont les octets reçus qui sont servis.
+ */
+final class FinalizeUpload
+{
+    /**
+     * @param  list<string>  $tagNames
+     */
+    public function handle(Upload $upload, string $clientChecksum, array $tagNames = []): Media
+    {
+        if (! $upload->isComplete()) {
+            throw ValidationException::withMessages([
+                'checksum' => 'Le fichier est incomplet : '.$upload->received_bytes.' octets reçus sur '.$upload->size_bytes.'.',
+            ]);
+        }
+
+        $partPath = $upload->absolutePartPath();
+        $checksum = hash_file('sha256', $partPath);
+
+        if (! hash_equals(strtolower($clientChecksum), $checksum)) {
+            Storage::disk('local')->delete($upload->part_path);
+            $upload->delete();
+
+            throw ValidationException::withMessages([
+                'checksum' => 'Le fichier reçu ne correspond pas à l’original (empreinte différente). Recommence le dépôt.',
+            ]);
+        }
+
+        $extension = strtolower(pathinfo($upload->original_name, PATHINFO_EXTENSION));
+        $directory = "media/{$upload->user_id}/{$upload->uuid}";
+        $finalPath = "{$directory}/{$upload->original_name}";
+
+        Storage::disk('local')->makeDirectory($directory);
+
+        // rename() déplace l'inode : aucun octet n'est relu ni réécrit.
+        if (! rename($partPath, Storage::disk('local')->path($finalPath))) {
+            throw ValidationException::withMessages(['checksum' => 'Impossible de ranger le fichier.']);
+        }
+
+        $media = DB::transaction(function () use ($upload, $extension, $finalPath, $checksum, $tagNames): Media {
+            $media = Media::create([
+                'user_id' => $upload->user_id,
+                'uuid' => $upload->uuid,
+                'original_name' => $upload->original_name,
+                'extension' => $extension,
+                'mime_type' => $upload->mime_type ?: 'application/octet-stream',
+                'kind' => MediaKind::fromExtension($extension),
+                'size_bytes' => $upload->size_bytes,
+                'checksum_sha256' => $checksum,
+                'disk_path' => $finalPath,
+            ]);
+
+            $this->attachTags($media, $tagNames);
+            $upload->delete();
+
+            return $media;
+        });
+
+        ProcessMedia::dispatch($media);
+
+        // Avec une file synchrone (local, tests), l'aperçu existe déjà : on
+        // renvoie l'état à jour plutôt que l'instance d'avant le traitement.
+        return $media->refresh();
+    }
+
+    /**
+     * @param  list<string>  $tagNames
+     */
+    private function attachTags(Media $media, array $tagNames): void
+    {
+        $ids = collect($tagNames)
+            ->map(fn (string $name): string => trim($name))
+            ->filter()
+            ->unique()
+            ->map(fn (string $name): int => Tag::query()->firstOrCreate(
+                ['user_id' => $media->user_id, 'name' => $name],
+            )->id)
+            ->all();
+
+        if ($ids !== []) {
+            $media->tags()->sync($ids);
+        }
+    }
+}

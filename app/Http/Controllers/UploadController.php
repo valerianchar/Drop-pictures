@@ -1,0 +1,87 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Actions\AppendUploadChunk;
+use App\Actions\FinalizeUpload;
+use App\Actions\StartUpload;
+use App\Http\Requests\FinishUploadRequest;
+use App\Http\Requests\StartUploadRequest;
+use App\Http\Resources\MediaResource;
+use App\Models\Upload;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+
+/**
+ * Le dépôt par morceaux, en trois temps : ouvrir, ajouter chaque morceau,
+ * clore avec l'empreinte. Répond en JSON — c'est le navigateur, pas Inertia,
+ * qui pilote ce protocole, morceau après morceau, avec sa barre de progression.
+ */
+class UploadController extends Controller
+{
+    public function store(StartUploadRequest $request, StartUpload $startUpload): JsonResponse
+    {
+        $upload = $startUpload->handle(
+            $request->user(),
+            $request->string('name')->value(),
+            $request->integer('size'),
+            $request->input('type'),
+        );
+
+        return response()->json([
+            'id' => $upload->uuid,
+            'chunk_bytes' => $upload->chunk_bytes,
+            'chunk_url' => route('uploads.chunk', [$upload->uuid, 'CHUNK']),
+            'finish_url' => route('uploads.finish', $upload->uuid),
+            'cancel_url' => route('uploads.destroy', $upload->uuid),
+        ], 201);
+    }
+
+    public function chunk(Request $request, Upload $upload, int $index, AppendUploadChunk $appendChunk): JsonResponse
+    {
+        $this->ensureOwner($request, $upload);
+
+        $stream = $request->getContent(asResource: true);
+
+        try {
+            $upload = $appendChunk->handle($upload, $index, $stream);
+        } finally {
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+        }
+
+        return response()->json([
+            'received_bytes' => $upload->received_bytes,
+            'next_chunk_index' => $upload->next_chunk_index,
+        ]);
+    }
+
+    public function finish(FinishUploadRequest $request, Upload $upload, FinalizeUpload $finalizeUpload): JsonResponse
+    {
+        $this->ensureOwner($request, $upload);
+
+        $media = $finalizeUpload->handle($upload, $request->string('checksum')->value(), $request->tagNames());
+        $media->load('tags')->loadCount('shareLinks');
+
+        return response()->json([
+            'media' => MediaResource::make($media)->resolve(),
+        ], 201);
+    }
+
+    public function destroy(Request $request, Upload $upload): JsonResponse
+    {
+        $this->ensureOwner($request, $upload);
+
+        Storage::disk('local')->delete($upload->part_path);
+        $upload->delete();
+
+        return response()->json(status: 204);
+    }
+
+    private function ensureOwner(Request $request, Upload $upload): void
+    {
+        abort_unless($upload->user_id === $request->user()->id, 404);
+    }
+}
