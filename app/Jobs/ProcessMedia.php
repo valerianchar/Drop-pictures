@@ -23,6 +23,13 @@ class ProcessMedia implements ShouldQueue
 
     public int $timeout = 300;
 
+    /**
+     * Un média supprimé avant que le worker ne l'atteigne — le selftest de chaque
+     * déploiement, ou un fichier retiré aussitôt déposé — n'a plus rien à traiter :
+     * le job disparaît en silence au lieu de rejoindre les échecs.
+     */
+    public bool $deleteWhenMissingModels = true;
+
     public function __construct(public readonly Media $media) {}
 
     public function handle(MediaProbe $probe): void
