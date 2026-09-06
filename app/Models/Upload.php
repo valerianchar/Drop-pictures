@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Storage;
  */
 #[Fillable([
     'uuid', 'user_id', 'original_name', 'mime_type', 'size_bytes', 'received_bytes',
-    'next_chunk_index', 'chunk_bytes', 'part_path',
+    'next_chunk_index', 'chunk_bytes', 'hash_state', 'part_path',
 ])]
 class Upload extends Model
 {

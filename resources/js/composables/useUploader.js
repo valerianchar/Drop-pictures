@@ -8,7 +8,7 @@ import { routes } from '../routes';
  * Le dépôt par morceaux, côté navigateur.
  *
  * Chaque fichier est lu tranche par tranche : la tranche nourrit l'empreinte
- * SHA-256 (calculée en flux, un fichier de 5 Go ne passe jamais en mémoire) et
+ * SHA-256 (calculée en flux, un fichier de 50 Go ne passe jamais en mémoire) et
  * part telle quelle au serveur — aucun redimensionnement, aucune conversion, le
  * navigateur ne touche pas aux octets. À la fin, l'empreinte est envoyée : le
  * serveur la recalcule sur ce qu'il a reçu et refuse tout écart.
@@ -22,7 +22,10 @@ const state = reactive({
 });
 
 const CONCURRENCY = 2;
-const CHUNK_RETRIES = 3;
+
+// Un fichier de plusieurs dizaines de Go traverse des milliers de morceaux : une
+// coupure passagère ne doit pas tout perdre. Six essais, jusqu'à 30 s d'attente.
+const CHUNK_RETRIES = 6;
 
 let queue = Promise.resolve();
 let running = 0;
@@ -129,7 +132,7 @@ async function sendChunk(url, bytes, item) {
                 throw error;
             }
 
-            await new Promise((resolve) => setTimeout(resolve, 800 * attempt));
+            await new Promise((resolve) => setTimeout(resolve, Math.min(30000, 1000 * 2 ** (attempt - 1))));
         }
     }
 }

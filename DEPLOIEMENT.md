@@ -35,9 +35,12 @@ en local, ou `openssl rand -base64 32` préfixé de `base64:`), `APP_URL`, `APP_
 
 Deux réglages méritent un regard :
 
-- **`DROP_QUOTA_BYTES` / `DROP_MAX_FILE_BYTES`** (10 Go / 5 Go). Les originaux s'accumulent
-  dans le volume docker `drop-picture_storage` : vérifiez que le disque de la machine peut les
-  contenir (`df -h /var/lib/docker`).
+- **`DROP_QUOTA_BYTES` / `DROP_MAX_FILE_BYTES`** (100 Go par compte / 50 Go par fichier). Le
+  quota est par compte : c'est le disque de la machine qui borne le total, et les originaux
+  s'accumulent dans le volume docker `drop-picture_storage` (`df -h /var/lib/docker`). Un dépôt
+  qui entamerait la réserve `DROP_DISK_RESERVE_BYTES` (5 Go) est refusé à l'ouverture. Pour des
+  vidéos de plusieurs dizaines de Go, prévoyez un disque à la mesure — un volume supplémentaire
+  monté sur `/var/lib/docker/volumes`, par exemple.
 - **Les e-mails** (invitations de groupe, mot de passe oublié). Par défaut ils vont dans le
   Mailpit de la pile — lisible par tunnel SSH sur le port **8026** (le 8025 est celui de
   pointage) : `ssh -L 8026:127.0.0.1:8026 vps` puis http://localhost:8026. Pour que les invités

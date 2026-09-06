@@ -14,9 +14,10 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Clôt un dépôt : le fichier partiel doit avoir exactement la taille annoncée et
- * l'empreinte SHA-256 calculée ici doit être celle que le navigateur a calculée
- * sur le fichier d'origine. Alors seulement il devient un média — par un simple
- * renommage, sans copie ni réécriture : ce sont les octets reçus qui sont servis.
+ * l'empreinte SHA-256 des octets reçus doit être celle que le navigateur a
+ * calculée sur le fichier d'origine. Alors seulement il devient un média — par
+ * un simple renommage, sans copie ni réécriture : ce sont les octets reçus qui
+ * sont servis.
  */
 final class FinalizeUpload
 {
@@ -32,7 +33,12 @@ final class FinalizeUpload
         }
 
         $partPath = $upload->absolutePartPath();
-        $checksum = hash_file('sha256', $partPath);
+
+        // L'empreinte a été calculée au fil des morceaux ; un dépôt ouvert avant
+        // cette mécanique (sans état conservé) relit le fichier, comme avant.
+        $checksum = $upload->hash_state !== null
+            ? hash_final(AppendUploadChunk::restoreContext($upload))
+            : hash_file('sha256', $partPath);
 
         if (! hash_equals(strtolower($clientChecksum), $checksum)) {
             Storage::disk('local')->delete($upload->part_path);

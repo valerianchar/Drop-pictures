@@ -10,8 +10,9 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Ouvre un dépôt : vérifie que le fichier tient dans le quota et sous la taille
- * maximale, puis réserve un fichier partiel où les morceaux viendront s'ajouter.
+ * Ouvre un dépôt : vérifie que le fichier tient sous la taille maximale, dans le
+ * quota du compte et sur le disque du serveur, puis réserve un fichier partiel
+ * où les morceaux viendront s'ajouter.
  */
 final class StartUpload
 {
@@ -34,6 +35,8 @@ final class StartUpload
             ]);
         }
 
+        $this->ensureDiskCanHold($sizeBytes);
+
         $uuid = (string) Str::uuid();
         $partPath = "uploads/{$uuid}.part";
 
@@ -48,6 +51,30 @@ final class StartUpload
             'chunk_bytes' => (int) config('drop.chunk_bytes'),
             'part_path' => $partPath,
         ]);
+    }
+
+    /**
+     * Le quota par compte ne protège pas le disque : plusieurs comptes peuvent
+     * le dépasser ensemble. On refuse un dépôt qui n'y tiendrait pas, en gardant
+     * une réserve pour la base, les journaux et les aperçus — plutôt que de le
+     * laisser échouer au dernier morceau, ou de mettre tout le serveur à genoux.
+     */
+    private function ensureDiskCanHold(int $sizeBytes): void
+    {
+        $free = @disk_free_space(Storage::disk('local')->path(''));
+
+        if ($free === false) {
+            return;
+        }
+
+        $reserve = (int) config('drop.disk_reserve_bytes');
+        $available = (int) max(0, $free - $reserve);
+
+        if ($sizeBytes > $available) {
+            throw ValidationException::withMessages([
+                'size' => 'Plus assez de place sur le serveur pour ce fichier : '.FileSize::format($available).' disponibles.',
+            ]);
+        }
     }
 
     /**

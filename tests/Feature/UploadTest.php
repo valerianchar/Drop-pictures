@@ -125,6 +125,51 @@ class UploadTest extends TestCase
             ->assertJsonValidationErrors('size');
     }
 
+    public function test_the_checksum_is_carried_from_chunk_to_chunk(): void
+    {
+        Queue::fake();
+        $user = User::factory()->create();
+        $original = random_bytes(2500);
+
+        $start = $this->actingAs($user)->postJson('/depots', ['name' => 'a.jpg', 'size' => 2500])->json();
+
+        $this->call('PUT', "/depots/{$start['id']}/morceaux/0", [], [], [], [], substr($original, 0, 1000))->assertOk();
+        $this->assertNotNull(Upload::query()->firstOrFail()->hash_state);
+
+        $this->call('PUT', "/depots/{$start['id']}/morceaux/1", [], [], [], [], substr($original, 1000, 1000))->assertOk();
+        $this->call('PUT', "/depots/{$start['id']}/morceaux/2", [], [], [], [], substr($original, 2000))->assertOk();
+
+        // Trois morceaux, trois requêtes : l'empreinte finale n'est juste que si
+        // l'état du hachage a bien traversé chacune d'elles.
+        $this->postJson("/depots/{$start['id']}/terminer", ['checksum' => hash('sha256', $original)])->assertCreated();
+        $this->assertSame(hash('sha256', $original), Media::query()->firstOrFail()->checksum_sha256);
+    }
+
+    public function test_an_upload_opened_before_incremental_hashing_is_still_verified(): void
+    {
+        Queue::fake();
+        $user = User::factory()->create();
+        $original = random_bytes(700);
+        $upload = Upload::factory()->for($user)->create(['size_bytes' => 700, 'received_bytes' => 700, 'next_chunk_index' => 1, 'hash_state' => null]);
+        Storage::disk('local')->put($upload->part_path, $original);
+
+        $this->actingAs($user)
+            ->postJson("/depots/{$upload->uuid}/terminer", ['checksum' => hash('sha256', $original)])
+            ->assertCreated();
+
+        $this->assertSame(hash('sha256', $original), Media::query()->firstOrFail()->checksum_sha256);
+    }
+
+    public function test_a_file_that_would_fill_the_disk_is_refused(): void
+    {
+        config(['drop.disk_reserve_bytes' => PHP_INT_MAX]);
+
+        $this->actingAs(User::factory()->create())
+            ->postJson('/depots', ['name' => 'film.mov', 'size' => 1000])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('size');
+    }
+
     public function test_a_file_over_the_maximum_size_is_refused(): void
     {
         config(['drop.max_file_bytes' => 1000]);

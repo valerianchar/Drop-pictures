@@ -1,10 +1,16 @@
 <script setup>
-import { onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { usePage } from '@inertiajs/vue3';
 import { HardDriveUpload } from '@lucide/vue';
 import { useUploader } from '../composables/useUploader';
+import { formatBytes } from '../format';
 
 const { addFiles, pickFiles } = useUploader();
+const page = usePage();
 const active = ref(false);
+
+/* La taille maximale annoncée est celle du serveur : elle change avec le .env, pas avec le code. */
+const maxLabel = computed(() => formatBytes(page.props.upload?.max_file_bytes ?? 0));
 
 /*
  * Le glisser-déposer s'écoute sur toute la fenêtre : dès qu'un fichier survole
@@ -78,7 +84,7 @@ onUnmounted(() => {
             {{ active ? 'Lâche, on s’en occupe' : 'Glisse tes photos et vidéos ici' }}
         </span>
         <span class="block text-[14px] text-text-muted">
-            Aucune compression : le fichier source est conservé tel quel — JPG, PNG, RAW, MP4, MOV jusqu'à 5 Go
+            Aucune compression : le fichier source est conservé tel quel — JPG, PNG, RAW, MP4, MOV jusqu'à {{ maxLabel }}
         </span>
     </button>
 </template>

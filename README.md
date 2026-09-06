@@ -15,12 +15,14 @@ C'est le cœur du produit, et chaque choix technique en découle :
   tranche par tranche et envoie les octets tels quels ; le serveur les écrit à la suite dans
   un fichier partiel, puis le *renomme* en média — jamais de copie ni de réécriture. Aucune
   bibliothèque d'optimisation d'images ne touche jamais au fichier d'origine.
-- **Dépôt par morceaux, jusqu'à 5 Go par fichier.** Chaque morceau (8 Mo) part dans sa
-  propre requête : `upload_max_filesize` et `post_max_size` ne portent que sur un morceau.
-- **Empreinte SHA-256 de bout en bout.** Le navigateur calcule l'empreinte en flux pendant
-  l'envoi ; le serveur la recalcule sur ce qu'il a reçu et **refuse tout écart**. L'empreinte
-  est stockée, affichée au destinataire et renvoyée en en-tête (`X-Checksum-SHA256`) : n'importe
-  qui peut vérifier le fichier téléchargé.
+- **Dépôt par morceaux, jusqu'à 50 Go par fichier (réglable).** Chaque morceau (8 Mo) part dans
+  sa propre requête : `upload_max_filesize` et `post_max_size` ne portent que sur un morceau, et
+  une coupure passagère ne coûte qu'un morceau à renvoyer.
+- **Empreinte SHA-256 de bout en bout, calculée au fil de l'eau.** Le navigateur calcule
+  l'empreinte en flux pendant l'envoi ; le serveur fait de même morceau après morceau (l'état du
+  hachage est conservé entre deux requêtes) et **refuse tout écart** à la clôture — immédiate,
+  quelle que soit la taille. L'empreinte est stockée, affichée au destinataire et renvoyée en
+  en-tête (`X-Checksum-SHA256`) : n'importe qui peut vérifier le fichier téléchargé.
 - **Les aperçus sont les seuls dérivés.** Une miniature JPEG réduite, dans son propre dossier,
   produite par un worker qui *lit* l'original (GD pour les photos, ffmpeg pour les vidéos).
   RAW, TIFF et formats inconnus n'ont pas d'aperçu — et sont acceptés tels quels.
@@ -94,8 +96,10 @@ octet n'est relu ni réécrit à cette étape.
 **Un dépôt interrompu ne laisse rien traîner.** Le planificateur purge chaque heure les dépôts
 inachevés depuis plus de 24 h, avec leur fichier partiel.
 
-**Le quota compte les tailles d'origine.** 10 Go par compte par défaut ; la somme exacte des
-octets déposés, puisque rien n'est jamais compressé.
+**Le quota compte les tailles d'origine.** 100 Go par compte par défaut ; la somme exacte des
+octets déposés, puisque rien n'est jamais compressé. Le disque du serveur reste la vraie limite :
+un dépôt qui entamerait la réserve (`DROP_DISK_RESERVE_BYTES`, 5 Go) est refusé à l'ouverture,
+plutôt que d'échouer au dernier morceau.
 
 **Partager par lien ne produit aucune version.** Un lien est un jeton de 16 caractères qui
 donne accès au fichier d'origine — sans limite, ou pour 7 jours. Expiré, il répond 404 comme

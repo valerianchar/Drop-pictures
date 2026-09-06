@@ -23,24 +23,40 @@ return [
     | Espace offert à chaque compte, en octets. Les fichiers sont conservés tels
     | qu'ils ont été déposés — aucune compression ne vient jamais « gagner » de
     | la place —, le quota est donc la somme exacte des tailles d'origine.
-    | 10 Go par défaut.
+    | 100 Go par défaut. Le disque du serveur reste la vraie limite : voir
+    | disk_reserve_bytes.
     |
     */
 
-    'quota_bytes' => (int) env('DROP_QUOTA_BYTES', 10 * 1024 * 1024 * 1024),
+    'quota_bytes' => (int) env('DROP_QUOTA_BYTES', 100 * 1024 * 1024 * 1024),
 
     /*
     |--------------------------------------------------------------------------
     | Taille maximale d'un fichier
     |--------------------------------------------------------------------------
     |
-    | 5 Go par défaut : de quoi accueillir une vidéo 4K ProRes ou une série RAW.
-    | Le fichier arrive par morceaux, jamais en une seule requête ; les limites
-    | PHP (upload_max_filesize, post_max_size) ne portent que sur un morceau.
+    | 50 Go par défaut : une vidéo 4K ProRes d'une heure passe. Le fichier arrive
+    | par morceaux, jamais en une seule requête — les limites PHP
+    | (upload_max_filesize, post_max_size) ne portent que sur un morceau — et son
+    | empreinte se calcule au fil des morceaux : la taille ne coûte rien à la
+    | clôture.
     |
     */
 
-    'max_file_bytes' => (int) env('DROP_MAX_FILE_BYTES', 5 * 1024 * 1024 * 1024),
+    'max_file_bytes' => (int) env('DROP_MAX_FILE_BYTES', 50 * 1024 * 1024 * 1024),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Réserve de disque
+    |--------------------------------------------------------------------------
+    |
+    | Espace à laisser libre sur le disque du serveur, en octets : un dépôt qui
+    | l'entamerait est refusé à l'ouverture. La base, les journaux et les aperçus
+    | doivent pouvoir continuer d'écrire. 5 Go par défaut.
+    |
+    */
+
+    'disk_reserve_bytes' => (int) env('DROP_DISK_RESERVE_BYTES', 5 * 1024 * 1024 * 1024),
 
     /*
     |--------------------------------------------------------------------------

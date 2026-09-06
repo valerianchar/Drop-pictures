@@ -4,6 +4,7 @@ import { usePage } from '@inertiajs/vue3';
 import AppLogo from '../components/AppLogo.vue';
 import FlashToast from '../components/FlashToast.vue';
 import LoginBackground from '../components/LoginBackground.vue';
+import { formatBytes } from '../format';
 
 const props = defineProps({
     title: { type: String, required: true },
@@ -12,6 +13,7 @@ const props = defineProps({
 
 const page = usePage();
 const pendingGroup = computed(() => page.props.pending_group);
+const maxLabel = computed(() => formatBytes(page.props.upload?.max_file_bytes ?? 0));
 </script>
 
 <template>
@@ -42,7 +44,7 @@ const pendingGroup = computed(() => page.props.pending_group);
             <div class="flex flex-wrap gap-6 font-mono text-[12px] text-text-muted">
                 <span><span class="text-accent-400">4K · RAW · ProRes</span><br />tels quels</span>
                 <span><span class="text-accent-400">0 %</span><br />de compression</span>
-                <span><span class="text-accent-400">5 Go</span><br />par fichier</span>
+                <span><span class="text-accent-400">{{ maxLabel }}</span><br />par fichier</span>
             </div>
         </section>
 
