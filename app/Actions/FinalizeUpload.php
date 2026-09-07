@@ -35,11 +35,14 @@ final class FinalizeUpload
             ]);
         }
 
+        // Le dernier morceau reçu a pu combler un trou : l'empreinte rattrape
+        // alors tout le préfixe d'un coup avant d'être arrêtée.
+        $upload = AppendUploadChunk::catchUp($upload);
         $partPath = $upload->absolutePartPath();
 
         // L'empreinte a été calculée au fil des morceaux ; un dépôt ouvert avant
         // cette mécanique (sans état conservé) relit le fichier, comme avant.
-        $checksum = $upload->hash_state !== null
+        $checksum = $upload->hash_state !== null && $upload->next_chunk_index >= $upload->chunkCount()
             ? hash_final(AppendUploadChunk::restoreContext($upload))
             : hash_file('sha256', $partPath);
 

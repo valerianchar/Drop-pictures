@@ -18,7 +18,7 @@ use Illuminate\Validation\ValidationException;
  */
 final class StartUpload
 {
-    public function handle(User $user, string $originalName, int $sizeBytes, ?string $mimeType): Upload
+    public function handle(User $user, string $originalName, int $sizeBytes, ?string $mimeType, ?int $wantedChunkBytes = null): Upload
     {
         $kind = MediaKind::fromExtension(pathinfo($originalName, PATHINFO_EXTENSION));
         $maxBytes = Limits::maxBytesFor($kind);
@@ -51,9 +51,23 @@ final class StartUpload
             'original_name' => $this->sanitizeName($originalName),
             'mime_type' => $mimeType !== null ? Str::limit($mimeType, 120, '') : null,
             'size_bytes' => $sizeBytes,
-            'chunk_bytes' => (int) config('drop.chunk_bytes'),
+            'chunk_bytes' => $this->chunkBytes($wantedChunkBytes),
             'part_path' => $partPath,
         ]);
+    }
+
+    /**
+     * La taille de morceau retenue : celle demandée par le navigateur, sans
+     * jamais dépasser celle du serveur — au-delà, un morceau ne passerait pas
+     * `post_max_size`. C'est cette valeur, renvoyée à l'ouverture, qui définit
+     * le découpage : le serveur en déduit la longueur attendue de chaque morceau
+     * et son décalage dans le fichier.
+     */
+    private function chunkBytes(?int $wanted): int
+    {
+        $server = (int) config('drop.chunk_bytes');
+
+        return $wanted === null ? $server : (int) max(256 * 1024, min($wanted, $server));
     }
 
     /**

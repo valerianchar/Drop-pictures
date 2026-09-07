@@ -32,6 +32,7 @@ class UploadController extends Controller
                 $request->string('name')->value(),
                 $request->integer('size'),
                 $request->input('type'),
+                $request->integer('chunk_bytes') ?: null,
             );
         } catch (ValidationException $exception) {
             // Un refus ne laisse aucune ligne : on le note, pour qu'un dépôt qui

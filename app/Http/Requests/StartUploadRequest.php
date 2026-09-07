@@ -15,6 +15,10 @@ class StartUploadRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'size' => ['required', 'integer', 'min:1'],
             'type' => ['nullable', 'string', 'max:128'],
+            // Le navigateur demande la taille de morceau qui lui convient — Safari
+            // iOS en veut de plus petits. Le serveur tranche et la renvoie : c'est
+            // elle qui fixe le découpage, et donc la longueur attendue de chacun.
+            'chunk_bytes' => ['nullable', 'integer', 'min:262144'],
         ];
     }
 

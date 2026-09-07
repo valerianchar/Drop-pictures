@@ -20,6 +20,7 @@ class UploadTest extends TestCase
 
     public function test_a_file_uploaded_in_chunks_is_stored_byte_for_byte(): void
     {
+        config(['drop.chunk_bytes' => 1000]);
         Queue::fake();
         $user = User::factory()->create();
 
@@ -32,7 +33,8 @@ class UploadTest extends TestCase
             ->assertCreated()
             ->json();
 
-        $chunkBytes = 1024;
+        // Le découpage suit la taille annoncée par le serveur, comme le navigateur.
+        $chunkBytes = $start['chunk_bytes'];
 
         foreach (str_split($original, $chunkBytes) as $index => $chunk) {
             $this->call('PUT', "/depots/{$start['id']}/morceaux/{$index}", [], [], [], [
@@ -67,6 +69,7 @@ class UploadTest extends TestCase
 
     public function test_a_checksum_mismatch_rejects_the_upload_and_discards_the_file(): void
     {
+        config(['drop.chunk_bytes' => 1000]);
         Queue::fake();
         $user = User::factory()->create();
         $original = random_bytes(600);
@@ -88,6 +91,7 @@ class UploadTest extends TestCase
 
     public function test_an_incomplete_upload_cannot_be_finished(): void
     {
+        config(['drop.chunk_bytes' => 1000]);
         $user = User::factory()->create();
         $start = $this->actingAs($user)->postJson('/depots', ['name' => 'a.jpg', 'size' => 2000])->json();
 
@@ -99,15 +103,19 @@ class UploadTest extends TestCase
         $this->assertDatabaseCount('media', 0);
     }
 
-    public function test_an_out_of_order_chunk_is_refused_and_a_repeated_one_ignored(): void
+    public function test_a_chunk_beyond_the_file_is_refused_and_a_repeated_one_ignored(): void
     {
         $user = User::factory()->create();
+        config(['drop.chunk_bytes' => 1000]);
         $start = $this->actingAs($user)->postJson('/depots', ['name' => 'a.jpg', 'size' => 3000])->json();
 
-        $this->call('PUT', "/depots/{$start['id']}/morceaux/1", [], [], [], [], random_bytes(1000))
+        // Trois morceaux de 1 000 octets : le quatrième n'existe pas.
+        $this->call('PUT', "/depots/{$start['id']}/morceaux/3", [], [], [], [], random_bytes(1000))
             ->assertUnprocessable();
 
         $this->call('PUT', "/depots/{$start['id']}/morceaux/0", [], [], [], [], random_bytes(1000))->assertOk();
+
+        // Renvoyé, il est ignoré : le navigateur a pu le réémettre.
         $this->call('PUT', "/depots/{$start['id']}/morceaux/0", [], [], [], [], random_bytes(1000))
             ->assertOk()
             ->assertJsonPath('received_bytes', 1000);
@@ -127,6 +135,7 @@ class UploadTest extends TestCase
 
     public function test_the_checksum_is_carried_from_chunk_to_chunk(): void
     {
+        config(['drop.chunk_bytes' => 1000]);
         Queue::fake();
         $user = User::factory()->create();
         $original = random_bytes(2500);
@@ -147,6 +156,7 @@ class UploadTest extends TestCase
 
     public function test_an_upload_opened_before_incremental_hashing_is_still_verified(): void
     {
+        config(['drop.chunk_bytes' => 1000]);
         Queue::fake();
         $user = User::factory()->create();
         $original = random_bytes(700);

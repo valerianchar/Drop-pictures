@@ -6,7 +6,6 @@ use App\Models\Upload;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class ClientLogTest extends TestCase
@@ -54,6 +53,7 @@ class ClientLogTest extends TestCase
 
     public function test_a_truncated_chunk_is_rolled_back_and_answered_409(): void
     {
+        config(['drop.chunk_bytes' => 1000]);
         $user = User::factory()->create();
         $start = $this->actingAs($user)->postJson('/depots', ['name' => 'clip.mp4', 'size' => 3000])->json();
 
@@ -63,8 +63,8 @@ class ClientLogTest extends TestCase
         $this->call('PUT', "/depots/{$start['id']}/morceaux/1", [], [], [], ['CONTENT_TYPE' => 'application/octet-stream', 'HTTP_CONTENT_LENGTH' => '1000'], random_bytes(600))
             ->assertStatus(409);
 
+        // Le morceau tronqué n'est pas marqué : ses octets n'entrent pas dans le compte.
         $this->assertSame(1000, Upload::query()->firstOrFail()->received_bytes);
-        $this->assertSame(1000, strlen(Storage::disk('local')->get("uploads/{$start['id']}.part")));
 
         // Renvoyé complet, il passe.
         $this->call('PUT', "/depots/{$start['id']}/morceaux/1", [], [], [], ['CONTENT_TYPE' => 'application/octet-stream', 'HTTP_CONTENT_LENGTH' => '1000'], random_bytes(1000))
