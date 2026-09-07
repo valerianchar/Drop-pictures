@@ -161,12 +161,17 @@ membres le voient et téléchargent l'original. Supprimer le groupe ne supprime 
 session ; après inscription ou connexion, l'utilisateur est installé dans le groupe. Une
 invitation en attente garde l'inscription ouverte même quand `DROP_REGISTRATION_OPEN=false`.
 
-**« Enregistrer dans Photos » sur iPhone.** Un téléchargement classique finit dans l'app Fichiers.
-Sur iPhone et iPad, le bouton principal passe l'original à la feuille de partage d'iOS
-(`navigator.share` avec le fichier lu en flux) : « Enregistrer l'image / la vidéo » l'envoie dans
-Photos, octets inchangés. En repli, l'original s'affiche inline (`/fichiers/{id}/voir`,
-`/p/{token}/voir`) et un appui long propose « Enregistrer dans Photos ». Le téléchargement vers
-Fichiers reste disponible en second.
+**« Enregistrer dans Photos » sur iPhone — un seul bouton, comme WhatsApp.** Un téléchargement
+classique finit dans l'app Fichiers. Sur iPhone et iPad, le bouton d'une photo ou d'une vidéo passe
+l'original à la feuille de partage d'iOS (`navigator.share` avec le fichier lu en flux) :
+« Enregistrer l'image / la vidéo » l'envoie dans Photos, octets inchangés ; la même feuille propose
+« Enregistrer dans Fichiers » à qui préfère. Safari n'ouvre la feuille que dans la foulée d'un geste :
+si la lecture d'une grosse vidéo a pris trop de temps, le fichier reste prêt en mémoire et le bouton
+demande un second appui. En repli seulement (fichier trop gros, type refusé), une photo s'affiche
+inline (`/fichiers/{id}/voir`, `/p/{token}/voir`) — un appui long propose « Enregistrer dans
+Photos » — et une vidéo part dans Fichiers. Chaque repli laisse une trace dans les journaux
+(`Client : photos.*`). Sur Android, le téléchargement suffit : la galerie ramasse d'elle-même le
+dossier Téléchargements.
 
 **Session expirée.** `App\Exceptions\RetryExpiredSession` renvoie l'utilisateur sur sa page,
 rechargée avec un jeton frais.

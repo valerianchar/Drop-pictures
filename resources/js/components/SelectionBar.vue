@@ -18,12 +18,13 @@ const props = defineProps({
 
 const emit = defineEmits(['all', 'clear', 'close', 'to-group']);
 
-const { saving, progress, saveMany, isApple } = useSaveToPhotos();
+const { saving, progress, saveMany, isReady, isApple } = useSaveToPhotos();
 
 const bytes = computed(() => props.selected.reduce((sum, item) => sum + item.size_bytes, 0));
 const zipUrl = computed(() => `${props.downloadUrl}?${props.selected.map((item) => `ids[]=${item.id}`).join('&')}`);
 const photosOnly = computed(() => props.selected.every((item) => item.kind === 'photo' || item.is_video));
 const percent = computed(() => Math.round(progress.value * 100));
+const ready = computed(() => isReady(props.selected.map((item) => item.id).join(',')));
 </script>
 
 <template>
@@ -60,6 +61,7 @@ const percent = computed(() => Math.round(progress.value * 100));
             <LoaderCircle v-if="saving" class="size-4 animate-spin" />
             <ImageDown v-else class="size-4" />
             <template v-if="saving">{{ percent }} %</template>
+            <template v-else-if="ready">Prêt — dans Photos</template>
             <template v-else>Dans Photos</template>
         </button>
 
