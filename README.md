@@ -44,8 +44,11 @@ C'est le cœur du produit, et chaque choix technique en découle :
   produite par un worker qui *lit* l'original (GD pour les photos, ffmpeg pour les vidéos).
   RAW, TIFF et formats inconnus n'ont pas d'aperçu — et sont acceptés tels quels.
 - **Le téléchargement et le partage servent toujours l'original**, sous son nom d'origine,
-  en flux avec reprise (`Range`), sans compression de transport (`encode identity` dans le
-  Caddyfile).
+  en flux avec reprise (`Range`), sans compression de transport. **Sans chronomètre non plus** :
+  `max_execution_time=0` dans [docker/php.ini](docker/php.ini). FrankenPHP compte le temps réel,
+  et la valeur par défaut de PHP (30 s) tuait toute réponse plus longue — un original de 200 Mo
+  servi à un téléphone en 4G, un ZIP de groupe. Le fichier arrivait tronqué, parfois avec un code
+  200 : la pire des pannes ici, puisqu'elle rend un fichier qui n'est plus l'original sans le dire.
 - **Le critère d'acceptation n°1 est vérifié à chaque déploiement** : `php artisan drop:selftest`
   dépose un fichier d'octets aléatoires par le même chemin que le navigateur, le retélécharge
   par HTTP via un lien de partage et compare les deux empreintes. `redeploie.sh` échoue si elles
