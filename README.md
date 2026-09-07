@@ -19,9 +19,21 @@ C'est le cœur du produit, et chaque choix technique en découle :
   morceau (8 Mo, 4 Mo sur iPhone — le découpage est négocié à l'ouverture) part dans sa propre
   requête : `upload_max_filesize` et `post_max_size` ne portent que sur un morceau, et une coupure
   passagère ne coûte qu'un morceau à renvoyer. Quatre morceaux voyagent en même temps (trois sur
-  iPhone), car un flux unique ne remplit pas un lien : mesuré sur la production, **15,2 → 44,1 Mo/s,
-  soit ×2,9**. Ils arrivent donc dans le désordre, chacun s'écrit à son décalage, et un masque dit
-  lesquels sont là.
+  iPhone) : ils arrivent donc dans le désordre, chacun s'écrit à son décalage, et un masque dit
+  lesquels sont là. **Ce que le parallélisme rapporte, mesuré sur la production** — et il faut le
+  dire sans l'enjoliver : sur un lien mobile, **le fil est la limite, pas le protocole**.
+
+  | Lien (simulé par `netem`) | 1 morceau en vol | 4 en vol | Gain |
+  | --- | --- | --- | --- |
+  | 20 Mbit/s, 40 ms d'aller-retour (4G) | 1,9 Mo/s | 2,2 Mo/s | ×1,2 |
+  | 100 Mbit/s, 60 ms | 8,4 Mo/s | 8,8 Mo/s | ×1,05 |
+  | Fibre, latence basse | 15 à 33 Mo/s | 14 à 56 Mo/s | très variable |
+
+  Autrement dit : une vidéo de 20 Go sur un lien à 20 Mbit/s prendra deux heures et demie quoi
+  qu'on fasse — seul le débit montant du réseau décide, et la seule façon d'envoyer moins d'octets
+  serait de dégrader le fichier, ce que ce produit ne fait jamais. Le parallélisme gagne quand même
+  quelques pour cent, ne coûte rien, et surtout il libère l'ordre d'arrivée : c'est lui qui rend
+  possible de ne renvoyer que les morceaux manquants après une interruption.
 - **Empreinte SHA-256 de bout en bout, calculée au fil de l'eau.** Le navigateur lit et hache le
   fichier dans l'ordre pendant l'envoi ; le serveur fait de même, mais sur le seul **préfixe
   contigu** déjà reçu — l'état du hachage est conservé entre deux requêtes et avance dès qu'un trou
