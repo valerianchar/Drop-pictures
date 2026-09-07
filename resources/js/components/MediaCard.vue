@@ -66,13 +66,19 @@ function onClick() {
             <!-- Posé sur la photo elle-même : fond sombre opaque, sinon il se noie dans une image claire. -->
             <span class="badge absolute top-2.5 right-2.5 bg-[rgba(4,7,4,0.8)] text-accent-400 backdrop-blur-[2px]">Original · {{ props.media.quality }}</span>
 
+            <!--
+                Une coche, pas une étiquette : sur une carte de galerie à deux
+                colonnes, « Dans Photos » passerait sous le badge de qualité.
+                Le libellé complet est dans l'infobulle et dans la fiche.
+            -->
             <span
                 v-if="!props.selectable && props.media.download"
-                class="absolute top-2.5 left-2.5 inline-flex items-center gap-1 rounded-pill bg-[rgba(4,7,4,0.8)] px-2 py-[3px] font-mono text-[10px] text-accent-400 backdrop-blur-[2px]"
+                class="absolute top-2.5 left-2.5 inline-flex size-6 items-center justify-center rounded-pill border border-accent-700 bg-[rgba(4,7,4,0.8)] text-accent-400 backdrop-blur-[2px]"
+                role="img"
+                :aria-label="`${props.media.download.label} — ${props.media.download.at_label}`"
                 :title="`${props.media.download.label} — ${props.media.download.at_label}`"
             >
-                <Check class="size-3" />
-                {{ props.media.download.label }}
+                <Check class="size-3.5" />
             </span>
 
             <span
