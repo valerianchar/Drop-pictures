@@ -15,14 +15,19 @@ C'est le cœur du produit, et chaque choix technique en découle :
   tranche par tranche et envoie les octets tels quels ; le serveur les écrit à la suite dans
   un fichier partiel, puis le *renomme* en média — jamais de copie ni de réécriture. Aucune
   bibliothèque d'optimisation d'images ne touche jamais au fichier d'origine.
-- **Dépôt par morceaux, jusqu'à 50 Go par fichier (réglable).** Chaque morceau (8 Mo) part dans
-  sa propre requête : `upload_max_filesize` et `post_max_size` ne portent que sur un morceau, et
-  une coupure passagère ne coûte qu'un morceau à renvoyer.
-- **Empreinte SHA-256 de bout en bout, calculée au fil de l'eau.** Le navigateur calcule
-  l'empreinte en flux pendant l'envoi ; le serveur fait de même morceau après morceau (l'état du
-  hachage est conservé entre deux requêtes) et **refuse tout écart** à la clôture — immédiate,
-  quelle que soit la taille. L'empreinte est stockée, affichée au destinataire et renvoyée en
-  en-tête (`X-Checksum-SHA256`) : n'importe qui peut vérifier le fichier téléchargé.
+- **Dépôt par morceaux, jusqu'à 50 Go par fichier (réglable), à plusieurs de front.** Chaque
+  morceau (8 Mo, 4 Mo sur iPhone — le découpage est négocié à l'ouverture) part dans sa propre
+  requête : `upload_max_filesize` et `post_max_size` ne portent que sur un morceau, et une coupure
+  passagère ne coûte qu'un morceau à renvoyer. Quatre morceaux voyagent en même temps (trois sur
+  iPhone), car un flux unique ne remplit pas un lien : mesuré sur la production, **15,2 → 44,1 Mo/s,
+  soit ×2,9**. Ils arrivent donc dans le désordre, chacun s'écrit à son décalage, et un masque dit
+  lesquels sont là.
+- **Empreinte SHA-256 de bout en bout, calculée au fil de l'eau.** Le navigateur lit et hache le
+  fichier dans l'ordre pendant l'envoi ; le serveur fait de même, mais sur le seul **préfixe
+  contigu** déjà reçu — l'état du hachage est conservé entre deux requêtes et avance dès qu'un trou
+  se comble. Il **refuse tout écart** à la clôture, qui reste immédiate quelle que soit la taille.
+  L'empreinte est stockée, affichée au destinataire et renvoyée en en-tête (`X-Checksum-SHA256`) :
+  n'importe qui peut vérifier le fichier téléchargé.
 - **Les aperçus sont les seuls dérivés.** Une miniature JPEG réduite, dans son propre dossier,
   produite par un worker qui *lit* l'original (GD pour les photos, ffmpeg pour les vidéos).
   RAW, TIFF et formats inconnus n'ont pas d'aperçu — et sont acceptés tels quels.
@@ -93,8 +98,16 @@ joue le test d'intégrité.
 l'inode est déplacé dans `storage/app/private/media/{user}/{uuid}/{nom d'origine}`. Aucun
 octet n'est relu ni réécrit à cette étape.
 
-**Un dépôt interrompu ne laisse rien traîner.** Le planificateur purge chaque heure les dépôts
-inachevés depuis plus de 24 h, avec leur fichier partiel.
+**Un dépôt interrompu se reprend, et ne laisse rien traîner.** Sur iPhone, **aucune page web ne
+peut téléverser en tâche de fond** : WebKit suspend le JavaScript dès qu'on quitte Safari ou que
+l'écran s'éteint, et ni Background Fetch ni Background Sync n'y existent — un job côté serveur, lui,
+n'a évidemment aucun accès au téléphone. Deux choses rendent donc l'envoi d'une grosse vidéo
+supportable : le **verrou d'écran** (Screen Wake Lock) tenu pendant tout le dépôt, qui empêche
+l'écran de s'éteindre et laisse l'envoi finir seul, téléphone posé ; et la **reprise** — ce que le
+serveur a déjà reçu l'attend 24 h, l'application le retrouve au retour (`GET /depots/{uuid}` dit ce
+qui manque) et ne renvoie que les morceaux manquants. Le fichier doit être redésigné, car aucun
+navigateur ne garde un accès durable à un fichier choisi ; c'est le seul geste qui reste. Passé
+24 h, le planificateur purge les dépôts inachevés avec leur fichier partiel.
 
 **Le quota compte les tailles d'origine.** 100 Go par compte par défaut ; la somme exacte des
 octets déposés, puisque rien n'est jamais compressé. Le disque du serveur reste la vraie limite :

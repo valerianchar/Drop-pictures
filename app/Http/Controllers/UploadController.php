@@ -58,6 +58,28 @@ class UploadController extends Controller
         ], 201);
     }
 
+    /**
+     * L'état d'un dépôt interrompu : ce qui manque encore. Le navigateur s'en
+     * sert pour reprendre là où il s'était arrêté — quitter l'application ne
+     * perd plus ce qui était déjà monté.
+     */
+    public function show(Request $request, Upload $upload): JsonResponse
+    {
+        $this->ensureOwner($request, $upload);
+
+        return response()->json([
+            'id' => $upload->uuid,
+            'name' => $upload->original_name,
+            'size' => $upload->size_bytes,
+            'chunk_bytes' => $upload->chunk_bytes,
+            'received_bytes' => $upload->received_bytes,
+            'missing' => $upload->missingChunks(),
+            'chunk_url' => route('uploads.chunk', [$upload->uuid, 'CHUNK']),
+            'finish_url' => route('uploads.finish', $upload->uuid),
+            'cancel_url' => route('uploads.destroy', $upload->uuid),
+        ]);
+    }
+
     public function chunk(Request $request, Upload $upload, int $index, AppendUploadChunk $appendChunk): JsonResponse
     {
         $this->ensureOwner($request, $upload);

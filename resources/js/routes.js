@@ -10,6 +10,7 @@ export const routes = {
     forgotPassword: '/mot-de-passe-oublie',
     resetPassword: '/nouveau-mot-de-passe',
     uploads: '/depots',
+    upload: (uuid) => `/depots/${uuid}`,
     clientLog: '/journal-client',
     markDownloaded: '/fichiers/enregistres',
     groups: '/groupes',

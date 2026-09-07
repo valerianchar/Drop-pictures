@@ -149,6 +149,42 @@ class ParallelUploadTest extends TestCase
             ->assertCreated();
     }
 
+    public function test_an_interrupted_upload_says_what_is_missing_and_resumes(): void
+    {
+        $user = User::factory()->create();
+        $bytes = random_bytes(3000);
+        $start = $this->actingAs($user)->postJson('/depots', ['name' => 'longue-video.mp4', 'size' => 3000])->json();
+
+        $this->sendChunk($start['id'], 0, substr($bytes, 0, 1000));
+        $this->sendChunk($start['id'], 2, substr($bytes, 2000, 1000));
+
+        // L'application est quittée ; au retour, elle demande où en était l'envoi.
+        $state = $this->actingAs($user)->getJson("/depots/{$start['id']}")
+            ->assertOk()
+            ->assertJsonPath('name', 'longue-video.mp4')
+            ->assertJsonPath('size', 3000)
+            ->assertJsonPath('received_bytes', 2000)
+            ->assertJsonPath('missing', [1])
+            ->json();
+
+        $this->assertSame(1000, $state['chunk_bytes']);
+
+        // Seul le morceau manquant repart, et le fichier est complet.
+        $this->sendChunk($start['id'], 1, substr($bytes, 1000, 1000));
+
+        $this->postJson("/depots/{$start['id']}/terminer", ['checksum' => hash('sha256', $bytes)])
+            ->assertCreated();
+
+        $this->assertSame($bytes, Storage::disk('local')->get(Media::query()->firstOrFail()->disk_path));
+    }
+
+    public function test_the_state_of_someone_elses_upload_is_not_readable(): void
+    {
+        $upload = Upload::factory()->create();
+
+        $this->actingAs(User::factory()->create())->getJson("/depots/{$upload->uuid}")->assertNotFound();
+    }
+
     private function sendChunk(string $uuid, int $index, string $bytes): void
     {
         $this->call('PUT', "/depots/{$uuid}/morceaux/{$index}", [], [], [], [

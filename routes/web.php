@@ -63,6 +63,7 @@ Route::middleware('auth')->group(function () {
 
     // Dépôt par morceaux — JSON.
     Route::post('/depots', [UploadController::class, 'store'])->name('uploads.store');
+    Route::get('/depots/{upload:uuid}', [UploadController::class, 'show'])->name('uploads.show');
     Route::put('/depots/{upload:uuid}/morceaux/{index}', [UploadController::class, 'chunk'])
         ->whereNumber('index')->name('uploads.chunk');
     Route::post('/depots/{upload:uuid}/terminer', [UploadController::class, 'finish'])->name('uploads.finish');

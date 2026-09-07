@@ -7,7 +7,7 @@ import FlashToast from '../components/FlashToast.vue';
 import SavePhotosQueue from '../components/SavePhotosQueue.vue';
 import UploadPanel from '../components/UploadPanel.vue';
 import UserMenu from '../components/UserMenu.vue';
-import { useUploader } from '../composables/useUploader';
+import { findResumableUploads, useUploader } from '../composables/useUploader';
 import { connectRealtime } from '../realtime';
 import { routes } from '../routes';
 
@@ -15,7 +15,11 @@ const page = usePage();
 const { pickFiles } = useUploader();
 
 /* Les écrans authentifiés s'abonnent au canal privé de l'utilisateur. */
-onMounted(() => connectRealtime(page.props.broadcast));
+onMounted(() => {
+    connectRealtime(page.props.broadcast);
+    // Un envoi interrompu par une sortie de l'application se propose à la reprise.
+    findResumableUploads();
+});
 
 /*
  * La recherche vit dans l'en-tête et interroge toujours la galerie : depuis une

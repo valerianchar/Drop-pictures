@@ -25,6 +25,8 @@ let nextId = 1;
 
 const state = reactive({
     items: [],
+    // Les envois interrompus qu'on peut reprendre, retrouvés au chargement.
+    resumables: [],
     // La page d'un groupe s'y déclare : ce qu'on dépose alors arrive directement dans le groupe.
     targetGroupId: null,
 });
@@ -64,7 +66,79 @@ function pushNotice(message) {
 }
 
 const PICKING_KEY = 'drop.picking';
+
+/*
+ * Les envois en cours, retenus dans le navigateur.
+ *
+ * Sur iPhone, aucune page web n'a le droit de téléverser en tâche de fond :
+ * WebKit suspend le JavaScript dès qu'on quitte Safari ou que l'écran s'éteint,
+ * et ni Background Fetch ni Background Sync n'y existent. Un envoi ne peut donc
+ * pas « continuer tout seul » — mais il ne doit pas non plus être perdu. Ce que
+ * le serveur a déjà reçu y reste 24 h : au retour, l'application propose de
+ * reprendre, et seuls les morceaux manquants repartent.
+ *
+ * Le fichier lui-même ne peut pas être retenu (le navigateur ne rend pas un
+ * accès durable à un fichier choisi) : il faut le resélectionner. C'est le
+ * dernier geste qu'iOS impose.
+ */
+const PENDING_KEY = 'drop.pending';
+
+function readPending() {
+    try {
+        const list = JSON.parse(localStorage.getItem(PENDING_KEY) ?? '[]');
+
+        return Array.isArray(list) ? list : [];
+    } catch {
+        return [];
+    }
+}
+
+function writePending(list) {
+    try {
+        localStorage.setItem(PENDING_KEY, JSON.stringify(list.slice(0, 20)));
+    } catch {
+        // Stockage refusé (navigation privée) : la reprise n'est simplement pas proposée.
+    }
+}
+
+function remember(entry) {
+    writePending([entry, ...readPending().filter((known) => known.uuid !== entry.uuid)]);
+}
+
+function forget(uuid) {
+    writePending(readPending().filter((known) => known.uuid !== uuid));
+    const index = state.resumables.findIndex((entry) => entry.uuid === uuid);
+
+    if (index !== -1) {
+        state.resumables.splice(index, 1);
+    }
+}
+
 let pickerElement = null;
+
+/**
+ * Prépare et rend le sélecteur. Sur téléphone et tablette, annoncer photos et
+ * vidéos fait proposer la photothèque et l'appareil (et non seulement
+ * « Fichiers ») ; HEIC et HEIF sont nommés explicitement, sans quoi Safari
+ * convertit les HEIC en JPEG au passage — l'inverse de la promesse du produit.
+ * Sur ordinateur, aucun filtre : un RAW au type inconnu doit rester
+ * sélectionnable.
+ */
+function openPicker() {
+    const input = picker();
+    input.value = '';
+
+    if (window.matchMedia?.('(pointer: coarse)').matches) {
+        input.accept = [
+            'image/*', 'video/*', 'image/heic', 'image/heif', '.heic', '.heif',
+            '.dng', '.cr2', '.cr3', '.nef', '.arw', '.raf', '.orf', '.rw2', '.mov', '.mp4',
+        ].join(',');
+    } else {
+        input.removeAttribute('accept');
+    }
+
+    return input;
+}
 
 function picker() {
     if (pickerElement === null || !document.body.contains(pickerElement)) {
@@ -173,20 +247,28 @@ function release() {
     }
 }
 
-async function uploadOne(item, file, tags, groupId) {
+async function uploadOne(item, file, tags, groupId, existing = null) {
     const chunkBytes = window.__dropChunkBytes ?? 8 * 1024 * 1024;
 
     try {
         item.status = 'preparation';
 
-        const start = await openUpload(file, wantedChunkBytes(chunkBytes));
+        const start = existing ?? await openUpload(file, wantedChunkBytes(chunkBytes));
+        // Retenu tout de suite : si l'envoi est interrompu (écran éteint, app
+        // quittée, réseau perdu), on saura quoi proposer de reprendre.
+        remember({ uuid: start.id, name: file.name, size: file.size, groupId: groupId ?? null, at: Date.now() });
         // La taille annoncée par le serveur fait loi : c'est elle qui fixe la
         // longueur attendue de chaque morceau et sa place dans le fichier.
         const size = start.chunk_bytes;
         item.cancelUrl = start.cancel_url;
+        item.uploadId = start.id;
 
         const hasher = await createSHA256();
         hasher.init();
+
+        // À la reprise, ce que le serveur a déjà ne repart pas — mais tout le
+        // fichier est relu pour l'empreinte, qui se calcule dans l'ordre.
+        const missing = Array.isArray(existing?.missing) ? new Set(existing.missing) : null;
 
         item.status = 'envoi';
         keepAwake();
@@ -228,7 +310,13 @@ async function uploadOne(item, file, tags, groupId) {
             // les octets qui viennent d'être hachés.
             hasher.update(new Uint8Array(await slice.arrayBuffer()));
 
-            dispatch(start.chunk_url.replace('CHUNK', String(index)), slice);
+            if (missing === null || missing.has(index)) {
+                dispatch(start.chunk_url.replace('CHUNK', String(index)), slice);
+            } else {
+                // Déjà chez le serveur : rien à renvoyer, la progression en tient compte.
+                item.sent += slice.size;
+                item.progress = item.sent / file.size;
+            }
 
             offset += slice.size;
             index += 1;
@@ -253,12 +341,17 @@ async function uploadOne(item, file, tags, groupId) {
         item.status = 'termine';
         item.progress = 1;
         item.media = finished.media;
+        forget(start.id);
     } catch (error) {
         if (item.cancelled || error.message === 'cancelled') {
             item.status = 'annule';
 
             if (item.cancelUrl) {
                 request(item.cancelUrl, { method: 'DELETE' }).catch(() => {});
+            }
+
+            if (item.uploadId) {
+                forget(item.uploadId);
             }
 
             return;
@@ -382,6 +475,41 @@ function refreshGallery(item) {
     }
 }
 
+/**
+ * Au chargement d'un écran authentifié : lesquels de nos envois interrompus le
+ * serveur garde-t-il encore ? Ceux qu'il a oubliés (clos, purgés au bout de
+ * 24 h) sortent de la liste sans un mot.
+ */
+export async function findResumableUploads() {
+    const entries = readPending();
+
+    if (entries.length === 0) {
+        return;
+    }
+
+    state.resumables.splice(0, state.resumables.length);
+
+    for (const entry of entries) {
+        try {
+            const status = await request(routes.upload(entry.uuid));
+
+            if (status.received_bytes >= status.size || status.missing.length === 0) {
+                forget(entry.uuid);
+
+                continue;
+            }
+
+            state.resumables.push({
+                ...entry,
+                receivedBytes: status.received_bytes,
+                progress: status.size ? status.received_bytes / status.size : 0,
+            });
+        } catch {
+            forget(entry.uuid);
+        }
+    }
+}
+
 export function useUploader() {
     function addFiles(fileList, tags = [], groupId = state.targetGroupId) {
         const files = Array.from(fileList ?? []);
@@ -447,17 +575,7 @@ export function useUploader() {
      * filtre : un RAW au type inconnu doit rester sélectionnable.
      */
     function pickFiles(tags = []) {
-        const input = picker();
-        input.value = '';
-
-        if (window.matchMedia?.('(pointer: coarse)').matches) {
-            input.accept = [
-                'image/*', 'video/*', 'image/heic', 'image/heif', '.heic', '.heif',
-                '.dng', '.cr2', '.cr3', '.nef', '.arw', '.raf', '.orf', '.rw2', '.mov', '.mp4',
-            ].join(',');
-        } else {
-            input.removeAttribute('accept');
-        }
+        const input = openPicker();
 
         const finish = (files, cancelled) => {
             input.removeEventListener('change', onChange);
@@ -523,6 +641,95 @@ export function useUploader() {
 
     const active = computed(() => state.items.filter((item) => !['termine', 'erreur', 'annule'].includes(item.status)));
 
+    /**
+     * Reprendre un envoi interrompu. Le fichier doit être resélectionné — un
+     * navigateur ne garde aucun accès durable à un fichier choisi — et c'est
+     * bien le même qui est attendu : même nom, même taille.
+     */
+    function resume(entry) {
+        const input = openPicker();
+
+        const onChange = () => {
+            input.removeEventListener('change', onChange);
+            input.removeEventListener('cancel', onCancel);
+
+            const file = Array.from(input.files ?? []).find(
+                (candidate) => candidate.name === entry.name && candidate.size === entry.size,
+            );
+
+            if (!file) {
+                pushNotice(`Ce n’est pas le même fichier : reprends « ${entry.name} » (${entry.size} octets).`);
+
+                return;
+            }
+
+            startResume(entry, file);
+        };
+        const onCancel = () => {
+            input.removeEventListener('change', onChange);
+            input.removeEventListener('cancel', onCancel);
+        };
+
+        input.addEventListener('change', onChange);
+        input.addEventListener('cancel', onCancel);
+        input.click();
+    }
+
+    async function startResume(entry, file) {
+        let status;
+
+        try {
+            status = await request(routes.upload(entry.uuid));
+        } catch {
+            forget(entry.uuid);
+            pushNotice('Cet envoi n’est plus en attente sur le serveur : redépose le fichier.');
+
+            return;
+        }
+
+        forget(entry.uuid);
+
+        const item = reactive({
+            id: nextId++,
+            name: file.name,
+            size: file.size,
+            groupId: entry.groupId,
+            sent: 0,
+            progress: 0,
+            status: 'attente',
+            error: null,
+            checksum: null,
+            media: null,
+            cancelled: false,
+            cancelUrl: null,
+            uploadId: entry.uuid,
+        });
+
+        state.items.unshift(item);
+
+        queue = queue.then(async () => {
+            await slot();
+
+            uploadOne(item, file, [], entry.groupId, status).finally(() => {
+                release();
+
+                if (item.status === 'termine') {
+                    refreshGallery(item);
+                }
+
+                if (!hasActiveUpload()) {
+                    letSleep();
+                }
+            });
+        });
+    }
+
+    /** Renoncer : le serveur oublie ce qu'il gardait. */
+    function forgetResumable(entry) {
+        request(routes.upload(entry.uuid), { method: 'DELETE' }).catch(() => {});
+        forget(entry.uuid);
+    }
+
     /** La page d'un groupe déclare sa cible en arrivant, et la retire en partant. */
     function setTargetGroup(groupId) {
         state.targetGroupId = groupId;
@@ -530,9 +737,12 @@ export function useUploader() {
 
     return {
         items: readonly(state).items,
+        resumables: readonly(state).resumables,
         active,
         addFiles,
         pickFiles,
+        resume,
+        forgetResumable,
         cancel,
         dismiss,
         clearFinished,
