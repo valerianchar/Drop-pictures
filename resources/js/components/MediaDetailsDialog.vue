@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
-import { Archive, Copy, LoaderCircle, Play, RefreshCw, Share2, Trash2, X } from '@lucide/vue';
+import { Archive, Check, Copy, LoaderCircle, Play, RefreshCw, Share2, Trash2, X } from '@lucide/vue';
 import AppDialog from './AppDialog.vue';
 import ConfirmDialog from './ConfirmDialog.vue';
 import DownloadActions from './DownloadActions.vue';
@@ -135,6 +135,13 @@ function destroy() {
             <dl class="mb-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[13px]">
                 <dt class="text-text-muted">Taille</dt>
                 <dd class="font-mono text-[12px]">{{ media.size_label }}</dd>
+                <template v-if="media.download">
+                    <dt class="text-text-muted">Récupéré</dt>
+                    <dd class="flex items-center gap-1.5 text-[12px]">
+                        <Check class="size-3.5 shrink-0 text-accent-400" />
+                        <span>{{ media.download.label }} · {{ media.download.at_label }}<template v-if="media.download.times > 1"> · {{ media.download.times }} fois</template></span>
+                    </dd>
+                </template>
                 <dt class="text-text-muted">Empreinte</dt>
                 <dd class="flex min-w-0 items-center gap-1.5">
                     <span class="truncate font-mono text-[11px]" :title="media.checksum">{{ media.checksum }}</span>

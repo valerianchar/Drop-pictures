@@ -1,5 +1,7 @@
 <script setup>
-import { Check, Download, Play, Share2 } from '@lucide/vue';
+import { computed } from 'vue';
+import { Check, Download, ImageDown, LoaderCircle, Play, Share2 } from '@lucide/vue';
+import { goesToPhotos, refreshDownloadsSoon, useSaveToPhotos } from '../composables/useSaveToPhotos';
 
 const props = defineProps({
     media: { type: Object, required: true },
@@ -11,6 +13,17 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['open', 'share', 'toggle']);
+
+/*
+ * Sur iPhone, l'icône « photothèque » vit à côté de celle du téléchargement :
+ * l'une range dans Photos, l'autre dans Fichiers. Ailleurs, un téléchargement
+ * atterrit déjà dans la galerie du téléphone — un second bouton n'aurait rien
+ * à faire de plus.
+ */
+const { saving, progress, save, isReady, isApple } = useSaveToPhotos();
+
+const offersPhotos = computed(() => isApple && goesToPhotos(props.media) && !props.selectable);
+const percent = computed(() => Math.round(progress.value * 100));
 
 function onClick() {
     if (props.selectable) {
@@ -54,6 +67,15 @@ function onClick() {
             <span class="badge absolute top-2.5 right-2.5 bg-[rgba(4,7,4,0.8)] text-accent-400 backdrop-blur-[2px]">Original · {{ props.media.quality }}</span>
 
             <span
+                v-if="!props.selectable && props.media.download"
+                class="absolute top-2.5 left-2.5 inline-flex items-center gap-1 rounded-pill bg-[rgba(4,7,4,0.8)] px-2 py-[3px] font-mono text-[10px] text-accent-400 backdrop-blur-[2px]"
+                :title="`${props.media.download.label} — ${props.media.download.at_label}`"
+            >
+                <Check class="size-3" />
+                {{ props.media.download.label }}
+            </span>
+
+            <span
                 v-if="props.selectable"
                 class="absolute top-2.5 left-2.5 inline-flex size-6 items-center justify-center rounded-sm border-[1.5px] transition-colors"
                 :class="props.selected ? 'border-accent-500 bg-accent-500 text-on-accent' : 'border-neutral-300 bg-[rgba(4,7,4,0.6)]'"
@@ -72,6 +94,20 @@ function onClick() {
             </div>
 
             <button
+                v-if="offersPhotos"
+                type="button"
+                class="btn btn-ghost iconbtn btn-sm shrink-0"
+                :aria-label="isReady(props.media.id) ? 'Prêt — appuie de nouveau pour enregistrer dans Photos' : 'Enregistrer dans Photos'"
+                :title="isReady(props.media.id) ? 'Prêt — appuie de nouveau' : 'Enregistrer dans Photos'"
+                :disabled="saving"
+                @click.stop="save(props.media)"
+            >
+                <LoaderCircle v-if="saving" class="size-4 animate-spin" />
+                <ImageDown v-else class="size-4" :class="isReady(props.media.id) && 'text-accent-400'" />
+                <span v-if="saving" class="font-mono text-[10px]">{{ percent }} %</span>
+            </button>
+
+            <button
                 v-if="props.action === 'share' && !props.selectable"
                 type="button"
                 class="btn btn-ghost iconbtn btn-sm shrink-0"
@@ -86,7 +122,7 @@ function onClick() {
                 class="btn btn-ghost iconbtn btn-sm shrink-0"
                 aria-label="Télécharger l'original"
                 download
-                @click.stop
+                @click.stop="refreshDownloadsSoon()"
             >
                 <Download class="size-4" />
             </a>

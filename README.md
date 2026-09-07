@@ -125,8 +125,26 @@ y restent — et supprime le groupe avec ses invitations.
 **Plusieurs originaux d'un coup.** « Tout télécharger » sur un groupe, ou le mode « Sélectionner »
 — dans la galerie comme dans un groupe —, produisent un ZIP fabriqué en flux, méthode *store* —
 aucune compression : chaque entrée est le fichier d'origine, octet pour octet, et un ZIP de
-plusieurs Go ne passe jamais par la mémoire de PHP. Sur iPhone, la même sélection part vers Photos
-par la feuille de partage. Depuis la galerie, elle peut aussi être envoyée dans un groupe.
+plusieurs Go ne passe jamais par la mémoire de PHP. Depuis la galerie, la sélection peut aussi
+être envoyée dans un groupe.
+
+**« Tout dans Photos », lot par lot.** Sur iPhone et iPad, la galerie et chaque groupe ont leur
+bouton « Tout dans Photos », à côté de « Tout télécharger » ; la barre de sélection aussi. Une
+feuille de partage ne peut pas avaler vingt vidéos d'un coup — iOS la refuse —, alors la sélection
+est découpée en lots que la feuille accepte (400 Mo ou 8 fichiers, un fichier de plus de 1,5 Go
+restant hors de portée), et un dialogue les enchaîne : un appui, un lot, et il avance. **Aucune
+tâche de fond ne peut faire ce travail à notre place** : la photothèque n'est accessible qu'à
+Safari, et seulement dans la foulée d'un geste — un job côté serveur n'a aucun chemin vers l'app
+Photos d'un téléphone. Le geste par lot est donc le minimum incontournable ; en échange, il n'y a
+plus de limite au nombre de fichiers qu'on peut ranger d'une traite, et un lot dont la préparation
+a dépassé la fenêtre du geste reste prêt en mémoire pour l'appui suivant, sans rien relire.
+
+**Ce qui est déjà récupéré se voit.** Chaque carte porte une pastille « Dans Photos » ou
+« Téléchargé » dès que ce fichier est reparti chez celui qui regarde — et la fiche donne la date et
+le nombre de fois. L'indicateur est **personnel** : dans un groupe, deux membres ne voient pas les
+mêmes pastilles. Les trois chemins de sortie le posent : un téléchargement, un ZIP (chaque entrée
+est marquée), et la photothèque — que seul le navigateur peut confirmer, puisqu'iOS y dépose sans
+passer par le serveur : la page le lui dit alors par `POST /fichiers/enregistres`.
 
 **Le groupe se met à jour tout seul.** Chaque groupe a son canal privé (Soketi, protocole
 Pusher, comme pointage) : un fichier déposé ou partagé par un membre apparaît chez les autres sans
@@ -167,7 +185,9 @@ l'original à la feuille de partage d'iOS (`navigator.share` avec le fichier lu 
 « Enregistrer l'image / la vidéo » l'envoie dans Photos, octets inchangés ; la même feuille propose
 « Enregistrer dans Fichiers » à qui préfère. Safari n'ouvre la feuille que dans la foulée d'un geste :
 si la lecture d'une grosse vidéo a pris trop de temps, le fichier reste prêt en mémoire et le bouton
-demande un second appui. En repli seulement (fichier trop gros, type refusé), une photo s'affiche
+demande un second appui. Sur chaque carte de la galerie, l'icône de photothèque est posée à côté de
+celle du téléchargement : l'une range dans Photos, l'autre dans Fichiers. En repli seulement
+(fichier trop gros, type refusé), une photo s'affiche
 inline (`/fichiers/{id}/voir`, `/p/{token}/voir`) — un appui long propose « Enregistrer dans
 Photos » — et une vidéo part dans Fichiers. Chaque repli laisse une trace dans les journaux
 (`Client : photos.*`). Sur Android, le téléchargement suffit : la galerie ramasse d'elle-même le

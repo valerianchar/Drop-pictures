@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\RecordMediaDownload;
+use App\Enums\DownloadChannel;
 use App\Models\Group;
 use App\Models\Media;
 use App\Support\ColdStorage;
@@ -22,14 +24,18 @@ class ZipDownloadController extends Controller
 {
     private const MAX_FILES = 500;
 
+    public function __construct(private readonly RecordMediaDownload $record) {}
+
     /** Tout le groupe. */
-    public function group(Group $group): StreamedResponse
+    public function group(Request $request, Group $group): StreamedResponse
     {
         Gate::authorize('view', $group);
 
         $media = $group->media()->orderBy('group_media.created_at')->get();
 
         abort_if($media->isEmpty(), 404, 'Ce groupe ne contient aucun fichier.');
+
+        $this->record->many($media, $request->user(), DownloadChannel::Zip);
 
         return $this->zip($media, Str::slug($group->name) ?: 'groupe');
     }
@@ -49,6 +55,8 @@ class ZipDownloadController extends Controller
 
         abort_if($media->count() !== $ids->count(), 404);
         $media->each(fn (Media $item) => Gate::authorize('view', $item));
+
+        $this->record->many($media, $request->user(), DownloadChannel::Zip);
 
         return $this->zip($media, 'drop-picture-'.now()->format('Y-m-d-Hi'));
     }

@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ArrowLeft, CheckSquare, Download, FolderPlus, LogOut, RefreshCw, Trash2, UserPlus } from '@lucide/vue';
+import { ArrowLeft, CheckSquare, Download, FolderPlus, ImageDown, LogOut, RefreshCw, Trash2, UserPlus } from '@lucide/vue';
 import ConfirmDialog from '../../components/ConfirmDialog.vue';
 import Dropzone from '../../components/Dropzone.vue';
 import InviteDialog from '../../components/InviteDialog.vue';
@@ -9,6 +9,7 @@ import MediaPickerDialog from '../../components/MediaPickerDialog.vue';
 import MediaDetailsDialog from '../../components/MediaDetailsDialog.vue';
 import MediaGrid from '../../components/MediaGrid.vue';
 import SelectionBar from '../../components/SelectionBar.vue';
+import { goesToPhotos, refreshDownloadsSoon, useSaveToPhotos } from '../../composables/useSaveToPhotos';
 import { useUploader } from '../../composables/useUploader';
 import { formatBytes } from '../../format';
 import { subscribeGroup, unsubscribeGroup } from '../../realtime';
@@ -27,6 +28,10 @@ const props = defineProps({
 });
 
 const { setTargetGroup } = useUploader();
+const { isApple, startQueue } = useSaveToPhotos();
+
+/* « Tout dans Photos » ne concerne que ce qui peut y entrer : photos et vidéos. */
+const forPhotos = computed(() => props.media.filter((item) => goesToPhotos(item)));
 
 /*
  * Sur cette page, « Déposer » et la zone de dépôt envoient directement dans le
@@ -129,11 +134,21 @@ function confirm() {
                 <FolderPlus class="size-4" />
                 Ajouter depuis ma galerie
             </button>
-            <a v-if="media.length" :href="group.download_url" class="btn btn-secondary no-underline hover:no-underline" download>
+            <a
+                v-if="media.length"
+                :href="group.download_url"
+                class="btn btn-secondary no-underline hover:no-underline"
+                download
+                @click="refreshDownloadsSoon()"
+            >
                 <Download class="size-4" />
                 Tout télécharger
                 <span class="font-mono text-[12px] text-text-muted">{{ totalLabel }}</span>
             </a>
+            <button v-if="isApple && forPhotos.length" type="button" class="btn btn-secondary" @click="startQueue(forPhotos)">
+                <ImageDown class="size-4" />
+                Tout dans Photos
+            </button>
             <button v-if="group.is_owner" type="button" class="btn btn-secondary" @click="confirming = 'regenerate'">
                 <RefreshCw class="size-4" />
                 Nouveau lien

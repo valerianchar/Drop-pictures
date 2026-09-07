@@ -19,7 +19,10 @@ final class UserMedia
     public function forGallery(User $user, ?string $tag, ?string $kind, ?string $search, int $limit = 300): Collection
     {
         return $user->media()
-            ->with(['tags' => fn ($query) => $query->orderBy('name')])
+            ->with([
+                'tags' => fn ($query) => $query->orderBy('name'),
+                'downloads' => fn ($query) => $query->where('user_id', $user->id),
+            ])
             ->withCount('shareLinks')
             ->when($tag !== null && $tag !== '', fn (Builder $query) => $query
                 ->whereHas('tags', fn (Builder $tags) => $tags->where('name', $tag)))

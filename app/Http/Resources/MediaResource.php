@@ -45,6 +45,8 @@ class MediaResource extends JsonResource
             'restore_url' => route('media.restore', $this->id),
             'tags' => $this->whenLoaded('tags', fn () => $this->tags->pluck('name')->values()->all(), []),
             'share_links_count' => $this->whenCounted('share_links_count'),
+            // Chargée filtrée sur celui qui regarde : au plus une ligne, la sienne.
+            'download' => $this->relationLoaded('downloads') ? $this->downloads->first()?->summary() : null,
             'shared_by' => $this->whenPivotLoaded('group_media', fn () => $this->pivot->shared_by),
             'created_at' => $this->created_at?->toIso8601String(),
             'created_label' => $this->created_at?->diffForHumans(),

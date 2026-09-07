@@ -11,6 +11,7 @@ export const routes = {
     resetPassword: '/nouveau-mot-de-passe',
     uploads: '/depots',
     clientLog: '/journal-client',
+    markDownloaded: '/fichiers/enregistres',
     groups: '/groupes',
     settings: '/reglages',
     mediaTags: (mediaId) => `/fichiers/${mediaId}/tags`,

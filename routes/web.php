@@ -10,6 +10,7 @@ use App\Http\Controllers\GroupController;
 use App\Http\Controllers\GroupInvitationController;
 use App\Http\Controllers\GroupMediaController;
 use App\Http\Controllers\MediaController;
+use App\Http\Controllers\MediaDownloadController;
 use App\Http\Controllers\PublicShareController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ShareLinkController;
@@ -69,6 +70,7 @@ Route::middleware('auth')->group(function () {
 
     // Avant la route paramétrée : « telecharger » et « choisir » ne sont pas des identifiants de fichier.
     Route::get('/fichiers/telecharger', [ZipDownloadController::class, 'many'])->name('media.download-many');
+    Route::post('/fichiers/enregistres', [MediaDownloadController::class, 'store'])->name('media.mark-downloaded');
     Route::get('/fichiers/choisir', [MediaController::class, 'index'])->name('media.index');
     Route::get('/fichiers/{media}/telecharger', [MediaController::class, 'download'])->name('media.download');
     Route::get('/fichiers/{media}/voir', [MediaController::class, 'view'])->name('media.view');

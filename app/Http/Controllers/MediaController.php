@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Actions\DeleteMedia;
+use App\Actions\RecordMediaDownload;
 use App\Actions\SyncMediaTags;
+use App\Enums\DownloadChannel;
 use App\Events\MediaRemoved;
 use App\Http\Requests\UpdateMediaTagsRequest;
 use App\Http\Resources\MediaResource;
@@ -42,10 +44,11 @@ class MediaController extends Controller
      * en flux avec reprise (Range) : un fichier de plusieurs Go part sans
      * jamais passer par la mémoire de PHP, et rien ne le transforme en route.
      */
-    public function download(Media $media): BinaryFileResponse
+    public function download(Request $request, Media $media, RecordMediaDownload $record): BinaryFileResponse
     {
         Gate::authorize('view', $media);
         $media = ColdStorage::ensureHot($media);
+        $record->handle($media, $request->user(), DownloadChannel::File);
 
         return response()
             ->download($media->absolutePath(), $media->original_name, [
@@ -60,11 +63,16 @@ class MediaController extends Controller
      * téléchargé. Sur iPhone, un appui long sur l'image propose alors
      * « Enregistrer dans Photos » — là où un téléchargement finit dans Fichiers.
      */
-    public function view(Media $media): BinaryFileResponse
+    public function view(Request $request, Media $media, RecordMediaDownload $record): BinaryFileResponse
     {
         Gate::authorize('view', $media);
+        $media = ColdStorage::ensureHot($media);
 
-        return self::inline(ColdStorage::ensureHot($media));
+        // Cette route n'est empruntée que par le repli « appui long → Enregistrer
+        // dans Photos » : la trace vaut donc bien pour la photothèque.
+        $record->handle($media, $request->user(), DownloadChannel::Photos);
+
+        return self::inline($media);
     }
 
     /**

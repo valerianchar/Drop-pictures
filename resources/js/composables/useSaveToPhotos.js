@@ -1,31 +1,44 @@
-import { ref } from 'vue';
+import { computed, reactive, ref } from 'vue';
+import { router } from '@inertiajs/vue3';
 import { postJson } from '../http';
 import { routes } from '../routes';
 import { useToast } from './useToast';
 
 /*
- * « Enregistrer » sur iPhone et iPad : dans Photos, comme WhatsApp.
+ * « Enregistrer dans Photos » sur iPhone et iPad : dans la photothèque, comme
+ * WhatsApp.
  *
  * Un téléchargement classique (Content-Disposition: attachment) finit dans
  * l'app Fichiers. Pour arriver dans Photos, il faut passer par la feuille de
  * partage d'iOS avec le fichier lui-même : on lit l'original en flux, on le
  * remet tel quel à navigator.share(), et iOS propose « Enregistrer l'image »
- * ou « Enregistrer la vidéo » — et, dans la même feuille, « Enregistrer dans
- * Fichiers » pour qui préfère. Aucun octet n'est transformé — le blob est la
+ * ou « Enregistrer la vidéo ». Aucun octet n'est transformé — le blob est la
  * réponse HTTP, celle dont l'empreinte est affichée à côté.
  *
- * Safari n'ouvre la feuille que dans la foulée d'un geste de l'utilisateur.
- * Quand la lecture du fichier a duré trop longtemps (une vidéo de plusieurs
- * centaines de Mo), le geste est périmé et share() répond NotAllowedError :
- * on garde alors le fichier prêt en mémoire et le bouton demande un second
- * appui, qui ouvre la feuille sans attente.
+ * Deux contraintes d'iOS commandent tout le reste :
  *
- * Quand le partage n'est pas possible du tout (fichier trop gros pour la
- * mémoire du téléphone, type refusé par iOS), une photo s'affiche inline —
- * un appui long propose « Enregistrer dans Photos » — et une vidéo part vers
- * Fichiers par le téléchargement classique.
+ * 1. La feuille n'accepte qu'un lot de taille raisonnable. Vingt vidéos d'un
+ *    coup, elle refuse. Alors « tout enregistrer » découpe la sélection en
+ *    lots (LOT_BYTES / LOT_COUNT) et les enchaîne — c'est la file d'attente
+ *    ci-dessous, partagée par toute l'application.
+ * 2. La feuille ne s'ouvre que dans la foulée d'un geste. Un serveur ne peut
+ *    donc rien déposer dans la photothèque à notre place : aucune tâche de
+ *    fond n'y a accès, seul Safari, et seulement juste après un appui. La file
+ *    demande donc un appui par lot — et si la lecture d'une grosse vidéo a
+ *    dépassé la fenêtre du geste, le lot reste prêt en mémoire et un second
+ *    appui ouvre la feuille sans rien relire.
+ *
+ * Quand le partage est impossible (fichier trop gros, type refusé), une photo
+ * s'affiche inline — un appui long propose « Enregistrer dans Photos » — et
+ * une vidéo part dans Fichiers.
  */
+
+/** Au-delà, la feuille de partage d'iOS ne veut pas d'un fichier : il partira dans Fichiers. */
 const SHARE_LIMIT_BYTES = 1.5 * 1024 * 1024 * 1024;
+/** Le poids d'un lot : au-delà, iOS refuse le partage (« la feuille est trop grosse »). */
+const LOT_BYTES = 400 * 1024 * 1024;
+/** Et son nombre de fichiers : la feuille reste lisible, et un échec ne coûte pas tout. */
+const LOT_COUNT = 8;
 
 export function isApplePhotosDevice() {
     if (typeof navigator === 'undefined') {
@@ -38,8 +51,13 @@ export function isApplePhotosDevice() {
     return /iPhone|iPad|iPod/.test(userAgent) || (platform === 'MacIntel' && (maxTouchPoints ?? 0) > 1);
 }
 
-function canShareFiles() {
+export function canShareFiles() {
     return typeof navigator.share === 'function' && typeof navigator.canShare === 'function';
+}
+
+/** Ce qui peut atterrir dans la photothèque : une photo ou une vidéo. */
+export function goesToPhotos(media) {
+    return media.kind === 'photo' || media.is_video;
 }
 
 /** Une trace côté serveur : un enregistrement qui « ne marche pas » n'est sinon visible nulle part. */
@@ -48,6 +66,33 @@ function report(event, data = {}) {
         event,
         data: { ...data, standalone: window.matchMedia?.('(display-mode: standalone)').matches ?? false },
     }).catch(() => {});
+}
+
+/**
+ * La photothèque a accepté : le serveur ne peut pas le deviner, la page le lui
+ * dit — c'est ce qui allume la pastille « Dans Photos » sur les cartes.
+ */
+async function markSaved(ids) {
+    try {
+        await postJson(routes.markDownloaded, { ids });
+        router.reload({ only: ['media'], preserveScroll: true, preserveState: true });
+    } catch {
+        // La pastille n'est qu'un confort : son échec ne gâche pas l'enregistrement.
+    }
+}
+
+let refreshTimer = null;
+
+/**
+ * Après un téléchargement classique, la trace est posée côté serveur pendant
+ * que le fichier part : on relit la galerie peu après pour allumer la pastille,
+ * sans rien casser de l'écran (ni défilement, ni sélection en cours).
+ */
+export function refreshDownloadsSoon() {
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => {
+        router.reload({ only: ['media'], preserveScroll: true, preserveState: true });
+    }, 2500);
 }
 
 async function readAll(media, onChunk) {
@@ -74,11 +119,229 @@ async function readAll(media, onChunk) {
     return new File(chunks, media.name, { type: media.mime_type || 'application/octet-stream' });
 }
 
+/**
+ * Ouvre la feuille de partage. À n'appeler que dans la foulée d'un geste :
+ * aucun `await` ne doit précéder navigator.share().
+ */
+async function openSheet(files, title) {
+    try {
+        await navigator.share({ files, title });
+
+        return 'ok';
+    } catch (error) {
+        if (error?.name === 'AbortError') {
+            return 'annule';
+        }
+
+        if (error?.name === 'NotAllowedError') {
+            return 'geste';
+        }
+
+        return 'refus';
+    }
+}
+
+/**
+ * Découpe une sélection en lots que la feuille de partage accepte. Les fichiers
+ * hors de sa portée sont mis de côté plutôt que de faire échouer le lot.
+ */
+function planLots(mediaList) {
+    const lots = [];
+    const tooBig = [];
+    let current = [];
+    let bytes = 0;
+
+    for (const media of mediaList) {
+        if (media.size_bytes > SHARE_LIMIT_BYTES) {
+            tooBig.push(media);
+
+            continue;
+        }
+
+        if (current.length > 0 && (bytes + media.size_bytes > LOT_BYTES || current.length >= LOT_COUNT)) {
+            lots.push(current);
+            current = [];
+            bytes = 0;
+        }
+
+        current.push(media);
+        bytes += media.size_bytes;
+    }
+
+    if (current.length > 0) {
+        lots.push(current);
+    }
+
+    return { lots, tooBig };
+}
+
+/*
+ * La file est unique dans la page : le bouton « Tout dans Photos » d'un groupe,
+ * celui de la galerie et la barre de sélection la remplissent, et un seul
+ * dialogue (monté dans la mise en page) la déroule.
+ */
+const queue = reactive({
+    open: false,
+    lots: [],
+    tooBig: [],
+    index: 0,
+    savedCount: 0,
+    skipped: [],
+    busy: false,
+    progress: 0,
+    /** Lot lu, feuille refusée faute de geste : un second appui suffit. */
+    ready: false,
+});
+
+let readyFiles = null;
+
+export function startPhotosQueue(mediaList) {
+    const eligible = mediaList.filter((media) => goesToPhotos(media));
+
+    if (eligible.length === 0 || !canShareFiles()) {
+        return false;
+    }
+
+    const { lots, tooBig } = planLots(eligible);
+
+    queue.lots = lots;
+    queue.tooBig = tooBig;
+    queue.index = 0;
+    queue.savedCount = 0;
+    queue.skipped = [];
+    queue.busy = false;
+    queue.progress = 0;
+    queue.ready = false;
+    queue.open = true;
+    readyFiles = null;
+
+    return true;
+}
+
+export function closePhotosQueue() {
+    queue.open = false;
+    queue.ready = false;
+    readyFiles = null;
+}
+
+function advance() {
+    queue.ready = false;
+    readyFiles = null;
+    queue.index += 1;
+}
+
+async function finishLot(lot, files) {
+    const outcome = await openSheet(files, lot.length > 1 ? `${lot.length} fichiers` : lot[0].name);
+
+    if (outcome === 'ok') {
+        const ids = lot.map((media) => media.id);
+        advance();
+        queue.savedCount += lot.length;
+        await markSaved(ids);
+
+        return;
+    }
+
+    // Geste périmé (grosse vidéo) ou feuille fermée : le lot reste prêt, un
+    // second appui l'ouvre sans rien relire.
+    if (outcome === 'geste' || outcome === 'annule') {
+        readyFiles = files;
+        queue.ready = true;
+
+        if (outcome === 'geste') {
+            report('photos.share-needs-tap', { count: files.length });
+        }
+
+        return;
+    }
+
+    report('photos.share-failed', { count: files.length });
+    queue.skipped.push(...lot);
+    advance();
+}
+
+export async function savePhotosLot() {
+    if (queue.busy || queue.index >= queue.lots.length) {
+        return;
+    }
+
+    const lot = queue.lots[queue.index];
+
+    // Second appui : la feuille s'ouvre tout de suite, sans await avant elle.
+    if (queue.ready && readyFiles !== null) {
+        return finishLot(lot, readyFiles);
+    }
+
+    queue.busy = true;
+    queue.progress = 0;
+
+    try {
+        const total = lot.reduce((sum, media) => sum + media.size_bytes, 0);
+        let received = 0;
+        const files = [];
+
+        for (const media of lot) {
+            files.push(
+                await readAll(media, (bytes) => {
+                    received += bytes;
+                    queue.progress = total ? received / total : 0;
+                }),
+            );
+        }
+
+        if (!navigator.canShare({ files })) {
+            report('photos.type-refused', { count: files.length });
+            queue.skipped.push(...lot);
+            advance();
+
+            return;
+        }
+
+        await finishLot(lot, files);
+    } catch (error) {
+        report('photos.read-failed', { error: String(error?.message ?? error), count: lot.length });
+        queue.skipped.push(...lot);
+        advance();
+    } finally {
+        queue.busy = false;
+        queue.progress = 0;
+    }
+}
+
+export function skipPhotosLot() {
+    if (queue.index < queue.lots.length) {
+        queue.skipped.push(...queue.lots[queue.index]);
+        advance();
+    }
+}
+
+/** L'état de la file, pour le dialogue qui la déroule. */
+export function usePhotosQueue() {
+    const currentLot = computed(() => queue.lots[queue.index] ?? []);
+    const totalFiles = computed(() => queue.lots.reduce((sum, lot) => sum + lot.length, 0));
+    const done = computed(() => queue.index >= queue.lots.length);
+    const lotBytes = computed(() => currentLot.value.reduce((sum, media) => sum + media.size_bytes, 0));
+    const percent = computed(() => Math.round(queue.progress * 100));
+
+    return {
+        queue,
+        currentLot,
+        totalFiles,
+        done,
+        lotBytes,
+        percent,
+        saveLot: savePhotosLot,
+        skipLot: skipPhotosLot,
+        close: closePhotosQueue,
+    };
+}
+
+/** Un seul fichier : la fiche, la carte, la page publique d'un lien. */
 export function useSaveToPhotos() {
     const saving = ref(false);
     const progress = ref(0);
-    // Fichier(s) lu(s) mais feuille refusée faute de geste : un second appui suffit.
-    const ready = ref(null);
+    const readyId = ref(null);
+    let readyFile = null;
     const { toast } = useToast();
 
     function fallback(media) {
@@ -93,42 +356,34 @@ export function useSaveToPhotos() {
         window.location.assign(media.view_url);
     }
 
-    /**
-     * Ouvre la feuille de partage. Doit être appelé dans la foulée d'un geste :
-     * aucun `await` avant navigator.share().
-     */
-    async function share(key, files, title, onDone, onRefused) {
-        try {
-            const promise = navigator.share({ files, title });
-            ready.value = null;
-            await promise;
-            onDone();
-        } catch (error) {
-            // L'utilisateur a fermé la feuille : rien à rattraper.
-            if (error?.name === 'AbortError') {
-                ready.value = null;
+    async function offer(media, file) {
+        const outcome = await openSheet([file], media.name);
 
-                return;
-            }
+        if (outcome === 'ok') {
+            readyId.value = null;
+            readyFile = null;
+            toast(`Choisis « Enregistrer ${media.is_video ? 'la vidéo' : 'l’image'} » : c’est l’original, sans compression.`);
+            await markSaved([media.id]);
 
-            if (error?.name === 'NotAllowedError') {
-                ready.value = { key, files, title, onDone, onRefused };
-                report('photos.share-needs-tap', { count: files.length, bytes: files.reduce((sum, file) => sum + file.size, 0) });
-                toast('Prêt — appuie de nouveau pour l’enregistrer dans Photos.');
-
-                return;
-            }
-
-            ready.value = null;
-            report('photos.share-failed', { error: String(error?.name ?? error), count: files.length });
-            onRefused();
+            return;
         }
-    }
 
-    function shareReady() {
-        const { key, files, title, onDone, onRefused } = ready.value;
+        if (outcome === 'geste' || outcome === 'annule') {
+            readyId.value = media.id;
+            readyFile = file;
 
-        return share(key, files, title, onDone, onRefused);
+            if (outcome === 'geste') {
+                report('photos.share-needs-tap', { bytes: media.size_bytes });
+                toast('Prêt — appuie de nouveau pour l’enregistrer dans Photos.');
+            }
+
+            return;
+        }
+
+        readyId.value = null;
+        readyFile = null;
+        report('photos.share-failed', { bytes: media.size_bytes });
+        fallback(media);
     }
 
     async function save(media) {
@@ -136,11 +391,13 @@ export function useSaveToPhotos() {
             return;
         }
 
-        if (ready.value?.key === media.id) {
-            return shareReady();
+        // Second appui : la feuille s'ouvre sans attente.
+        if (readyId.value === media.id && readyFile !== null) {
+            return offer(media, readyFile);
         }
 
-        ready.value = null;
+        readyId.value = null;
+        readyFile = null;
 
         if (!canShareFiles() || media.size_bytes > SHARE_LIMIT_BYTES) {
             report('photos.share-unavailable', { bytes: media.size_bytes, can_share: canShareFiles() });
@@ -167,13 +424,7 @@ export function useSaveToPhotos() {
                 return;
             }
 
-            await share(
-                media.id,
-                [file],
-                media.name,
-                () => toast(`Choisis « Enregistrer ${media.is_video ? 'la vidéo' : 'l’image'} » : c’est l’original, sans compression.`),
-                () => fallback(media),
-            );
+            await offer(media, file);
         } catch (error) {
             report('photos.read-failed', { error: String(error?.message ?? error) });
             fallback(media);
@@ -183,72 +434,12 @@ export function useSaveToPhotos() {
         }
     }
 
-    /**
-     * Plusieurs originaux d'un coup dans la feuille de partage : iOS propose
-     * « Enregistrer N images ». Les fichiers sont lus l'un après l'autre ; la
-     * progression est globale.
-     */
-    async function saveMany(mediaList) {
-        if (saving.value || !mediaList.length) {
-            return;
-        }
-
-        const key = mediaList.map((media) => media.id).join(',');
-
-        if (ready.value?.key === key) {
-            return shareReady();
-        }
-
-        ready.value = null;
-        const total = mediaList.reduce((sum, media) => sum + media.size_bytes, 0);
-
-        if (!canShareFiles() || total > SHARE_LIMIT_BYTES) {
-            toast('Trop lourd pour la feuille de partage : télécharge le ZIP, ou enregistre les photos une par une.', { error: true });
-
-            return;
-        }
-
-        saving.value = true;
-        progress.value = 0;
-        let received = 0;
-
-        try {
-            const files = [];
-
-            for (const media of mediaList) {
-                files.push(
-                    await readAll(media, (bytes) => {
-                        received += bytes;
-                        progress.value = total ? received / total : 0;
-                    }),
-                );
-            }
-
-            if (!navigator.canShare({ files })) {
-                toast('Le téléphone refuse ce lot dans la feuille de partage : essaie avec moins de fichiers.', { error: true });
-
-                return;
-            }
-
-            await share(
-                key,
-                files,
-                `${files.length} fichiers`,
-                () => toast(`Choisis « Enregistrer ${files.length} images » : les originaux, sans compression.`),
-                () => toast('L’enregistrement dans Photos a échoué : télécharge plutôt le ZIP.', { error: true }),
-            );
-        } catch (error) {
-            report('photos.read-failed', { error: String(error?.message ?? error), count: mediaList.length });
-            toast('L’enregistrement dans Photos a échoué : télécharge plutôt le ZIP.', { error: true });
-        } finally {
-            saving.value = false;
-            progress.value = 0;
-        }
-    }
-
-    function isReady(key) {
-        return ready.value?.key === key;
-    }
-
-    return { saving, progress, save, saveMany, isReady, isApple: isApplePhotosDevice() };
+    return {
+        saving,
+        progress,
+        save,
+        isReady: (id) => readyId.value === id,
+        isApple: isApplePhotosDevice(),
+        startQueue: startPhotosQueue,
+    };
 }

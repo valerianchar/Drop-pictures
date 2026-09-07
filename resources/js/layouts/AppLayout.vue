@@ -4,6 +4,7 @@ import { Link, router, usePage } from '@inertiajs/vue3';
 import { ImageUp, Search } from '@lucide/vue';
 import AppLogo from '../components/AppLogo.vue';
 import FlashToast from '../components/FlashToast.vue';
+import SavePhotosQueue from '../components/SavePhotosQueue.vue';
 import UploadPanel from '../components/UploadPanel.vue';
 import UserMenu from '../components/UserMenu.vue';
 import { useUploader } from '../composables/useUploader';
@@ -89,4 +90,6 @@ watch(chunkBytes, (value) => (window.__dropChunkBytes = value), { immediate: tru
     </div>
 
     <FlashToast />
+    <!-- La file « Tout dans Photos » est unique dans la page : un seul dialogue la déroule. -->
+    <SavePhotosQueue />
 </template>

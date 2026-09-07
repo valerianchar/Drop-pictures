@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue';
-import { Download, ImageDown, LoaderCircle, Users, X } from '@lucide/vue';
-import { useSaveToPhotos } from '../composables/useSaveToPhotos';
+import { Download, ImageDown, Users, X } from '@lucide/vue';
+import { goesToPhotos, refreshDownloadsSoon, useSaveToPhotos } from '../composables/useSaveToPhotos';
 import { formatBytes } from '../format';
 
 /**
@@ -18,13 +18,12 @@ const props = defineProps({
 
 const emit = defineEmits(['all', 'clear', 'close', 'to-group']);
 
-const { saving, progress, saveMany, isReady, isApple } = useSaveToPhotos();
+const { isApple, startQueue } = useSaveToPhotos();
 
 const bytes = computed(() => props.selected.reduce((sum, item) => sum + item.size_bytes, 0));
 const zipUrl = computed(() => `${props.downloadUrl}?${props.selected.map((item) => `ids[]=${item.id}`).join('&')}`);
-const photosOnly = computed(() => props.selected.every((item) => item.kind === 'photo' || item.is_video));
-const percent = computed(() => Math.round(progress.value * 100));
-const ready = computed(() => isReady(props.selected.map((item) => item.id).join(',')));
+const photosOnly = computed(() => props.selected.every((item) => goesToPhotos(item)));
+
 </script>
 
 <template>
@@ -55,14 +54,11 @@ const ready = computed(() => isReady(props.selected.map((item) => item.id).join(
             v-if="isApple && photosOnly"
             type="button"
             class="btn btn-secondary btn-sm"
-            :disabled="!props.selected.length || saving"
-            @click="saveMany(props.selected)"
+            :disabled="!props.selected.length"
+            @click="startQueue(props.selected)"
         >
-            <LoaderCircle v-if="saving" class="size-4 animate-spin" />
-            <ImageDown v-else class="size-4" />
-            <template v-if="saving">{{ percent }} %</template>
-            <template v-else-if="ready">Prêt — dans Photos</template>
-            <template v-else>Dans Photos</template>
+            <ImageDown class="size-4" />
+            Dans Photos
         </button>
 
         <a
@@ -71,6 +67,7 @@ const ready = computed(() => isReady(props.selected.map((item) => item.id).join(
             :class="!props.selected.length && 'pointer-events-none opacity-45'"
             :aria-disabled="!props.selected.length"
             download
+            @click="refreshDownloadsSoon()"
         >
             <Download class="size-4" />
             ZIP

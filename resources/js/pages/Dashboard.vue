@@ -2,13 +2,14 @@
 import { computed, ref, watch } from 'vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import { TabsContent, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
-import { CheckSquare, Plus } from '@lucide/vue';
+import { CheckSquare, ImageDown, Plus } from '@lucide/vue';
 import Dropzone from '../components/Dropzone.vue';
 import GroupCard from '../components/GroupCard.vue';
 import GroupPickerDialog from '../components/GroupPickerDialog.vue';
 import InviteDialog from '../components/InviteDialog.vue';
 import MediaDetailsDialog from '../components/MediaDetailsDialog.vue';
 import MediaGrid from '../components/MediaGrid.vue';
+import { goesToPhotos, useSaveToPhotos } from '../composables/useSaveToPhotos';
 import NewGroupDialog from '../components/NewGroupDialog.vue';
 import SelectionBar from '../components/SelectionBar.vue';
 import ShareDialog from '../components/ShareDialog.vue';
@@ -65,6 +66,10 @@ const selecting = ref(false);
 const selectedIds = ref([]);
 const pickingGroup = ref(false);
 const selected = computed(() => props.media.filter((item) => selectedIds.value.includes(item.id)));
+
+/* « Tout dans Photos » : la galerie visible, filtres compris, sans les fichiers qui n'y entrent pas. */
+const { isApple, startQueue } = useSaveToPhotos();
+const forPhotos = computed(() => props.media.filter((item) => goesToPhotos(item)));
 
 function toggle(media) {
     selectedIds.value = selectedIds.value.includes(media.id)
@@ -125,6 +130,15 @@ const storageLine = computed(() => {
         <TabsContent value="fichiers">
             <div class="mb-5 flex flex-wrap items-start gap-2">
                 <TagFilter class="mb-0! min-w-0 flex-1" :tags="tags" :kinds="kinds" :filters="filters" @change="applyFilters" />
+                <button
+                    v-if="isApple && forPhotos.length"
+                    type="button"
+                    class="btn btn-secondary btn-sm shrink-0"
+                    @click="startQueue(forPhotos)"
+                >
+                    <ImageDown class="size-4" />
+                    Tout dans Photos
+                </button>
                 <button
                     v-if="media.length"
                     type="button"

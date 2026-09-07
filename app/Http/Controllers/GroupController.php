@@ -32,7 +32,10 @@ class GroupController extends Controller
         $group->loadCount(['memberships', 'media']);
 
         $media = $group->media()
-            ->with(['tags' => fn ($query) => $query->orderBy('name')])
+            ->with([
+                'tags' => fn ($query) => $query->orderBy('name'),
+                'downloads' => fn ($query) => $query->where('user_id', $request->user()->id),
+            ])
             ->latest('group_media.created_at')
             ->get();
 

@@ -2,9 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\RecordMediaDownload;
+use App\Enums\DownloadChannel;
 use App\Http\Resources\MediaResource;
+use App\Models\Media;
 use App\Models\ShareLink;
+use App\Models\User;
 use App\Support\ColdStorage;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -34,11 +39,15 @@ class PublicShareController extends Controller
         ]);
     }
 
-    public function download(string $token): BinaryFileResponse
+    public function download(Request $request, string $token, RecordMediaDownload $record): BinaryFileResponse
     {
         $link = $this->activeLink($token);
         $link->increment('downloads_count');
         $media = ColdStorage::ensureHot($link->media);
+
+        // Un visiteur anonyme n'a pas de pastille ; le déposant qui suit son
+        // propre lien, ou un membre du groupe, en a une.
+        $record->handle($media, $this->viewer($request, $media), DownloadChannel::File);
 
         return response()
             ->download($media->absolutePath(), $media->original_name, [
@@ -51,12 +60,25 @@ class PublicShareController extends Controller
     /**
      * L'original affiché dans le navigateur (« Enregistrer dans Photos » sur iPhone).
      */
-    public function view(string $token): BinaryFileResponse
+    public function view(Request $request, string $token, RecordMediaDownload $record): BinaryFileResponse
     {
         $link = $this->activeLink($token);
         $link->increment('downloads_count');
+        $media = ColdStorage::ensureHot($link->media);
+        $record->handle($media, $this->viewer($request, $media), DownloadChannel::Photos);
 
-        return MediaController::inline(ColdStorage::ensureHot($link->media));
+        return MediaController::inline($media);
+    }
+
+    /**
+     * Celui qui regarde, s'il est connecté et que ce fichier est bien à lui ou
+     * partagé avec lui — sinon personne.
+     */
+    private function viewer(Request $request, Media $media): ?User
+    {
+        $user = $request->user();
+
+        return $user !== null && $media->isAccessibleBy($user) ? $user : null;
     }
 
     public function thumbnail(string $token): BinaryFileResponse

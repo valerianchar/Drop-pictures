@@ -82,6 +82,17 @@ class Media extends Model
         return $this->hasMany(ShareLink::class);
     }
 
+    /**
+     * Qui a déjà récupéré ce fichier, et comment. Chargée filtrée sur celui qui
+     * regarde : la pastille « déjà téléchargé » est personnelle.
+     *
+     * @return HasMany<MediaDownload, $this>
+     */
+    public function downloads(): HasMany
+    {
+        return $this->hasMany(MediaDownload::class);
+    }
+
     /** @return BelongsToMany<Group, $this> */
     public function groups(): BelongsToMany
     {

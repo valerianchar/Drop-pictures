@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { Download, ImageDown, LoaderCircle } from '@lucide/vue';
-import { useSaveToPhotos } from '../composables/useSaveToPhotos';
+import { refreshDownloadsSoon, useSaveToPhotos } from '../composables/useSaveToPhotos';
 
 /**
  * Le bouton qui rend l'original — un seul. Sur iPhone/iPad, une photo ou une
@@ -41,7 +41,14 @@ const percent = computed(() => Math.round(progress.value * 100));
             <template v-else>Enregistrer dans Photos<template v-if="props.large"> ({{ props.media.size_label }})</template></template>
         </button>
 
-        <a v-else :href="props.media.download_url" class="btn btn-primary no-underline hover:no-underline" :class="[sizeClass, blockClass]" download>
+        <a
+            v-else
+            :href="props.media.download_url"
+            class="btn btn-primary no-underline hover:no-underline"
+            :class="[sizeClass, blockClass]"
+            download
+            @click="refreshDownloadsSoon()"
+        >
             <Download class="size-[18px]" />
             Télécharger l'original<template v-if="props.large"> ({{ props.media.size_label }})</template>
         </a>
